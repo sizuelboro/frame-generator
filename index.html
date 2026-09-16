@@ -190,6 +190,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
     <button class="btn" id="btnFitCanvas">Fit canvas</button>
     <button class="btn" id="btnLibrarySettings">Library settings</button>
     <button class="btn primary" id="btnPublishCloud">Publish to Canva Dev</button>
+    <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk 100</button>
     <button class="btn" id="btnAutoScreen">Auto screen</button>
     <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
     <button class="btn" id="btnPickOpening">Pick opening</button>
@@ -1430,6 +1431,19 @@ $('#btnPublishCloud').onclick = async () => {
   try{const off=silhouetteMode?silhouetteThumbnail(frames):exportCanvas({scale:2,only:['overlay'],bg:false});const blank=silhouetteMode?silhouetteTransparentOverlay():null,overlayImageData=silhouetteMode?(frames[0].detailOverlayDataUrl||(blank&&blank.toDataURL('image/png'))):undefined;const response=await fetch(config.base+'/api/frames',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify({mode:smartMask?'smart-mask':(silhouetteMode?'silhouette':'overlay'),name:name.trim(),w:doc.canvas.w,h:doc.canvas.h,assetWidth:silhouetteMode?doc.canvas.w:off.width,assetHeight:silhouetteMode?doc.canvas.h:off.height,paths:smartMask?[]:paths,multiElement:smartMask?false:multiElement,smartMask,maskImageData:smartMask?frames[0].smartMaskDataUrl:undefined,imageData:off.toDataURL('image/png'),overlayImageData})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);toast(`${name.trim()} published as ${silhouetteMode?(multiElement?('exact multi-element silhouette · '+paths.length+' aligned frames'):(frames[0].detailOverlayDataUrl?'smart silhouette + detail overlay':'one silhouette drop target')):'overlay frame'} · ${result.count} frame(s) in library`)}catch(e){toast('Publish failed: '+String(e.message||e))}finally{button.disabled=false;button.textContent=text}
 };
 
+
+/* -------------------------- bulk 100 publisher -------------------------- */
+function bulkReadFile(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=()=>reject(new Error('Could not read file'));r.readAsDataURL(file)})}
+function bulkBaseName(name){return String(name||'Untitled').replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').trim().slice(0,90)||'Untitled'}
+async function bulkLayer(file,mode){const src=await bulkReadFile(file),m=await loadMeta(src),scale=mode==='overlay'?Math.min(doc.canvas.w/m.w,doc.canvas.h/m.h):Math.min(doc.canvas.w/m.w,doc.canvas.h/m.h,1);return{id:uid(),type:mode==='overlay'?'overlay':'image',name:bulkBaseName(file.name),src,x:(doc.canvas.w-m.w*scale)/2,y:(doc.canvas.h-m.h*scale)/2,w:m.w*scale,h:m.h*scale,rotation:0,visible:true,locked:mode==='overlay',opacity:1}}
+async function bulkOverlayCanvas(L){const img=await loadImg(L.src),off=document.createElement('canvas');off.width=Math.round(doc.canvas.w*2);off.height=Math.round(doc.canvas.h*2);const x=off.getContext('2d');x.drawImage(img,L.x*2,L.y*2,L.w*2,L.h*2);return off}
+function bulkSilhouetteCanvas(paths){const off=document.createElement('canvas');off.width=Math.round(doc.canvas.w*2);off.height=Math.round(doc.canvas.h*2);const x=off.getContext('2d');x.scale(2,2);x.fillStyle='#f3f4f6';x.fillRect(0,0,doc.canvas.w,doc.canvas.h);x.fillStyle='#9ca3af';for(const d of paths)x.fill(new Path2D(d));return off}
+async function bulkPublishOne(file,mode,config){const L=await bulkLayer(file,mode),name=bulkBaseName(file.name);let payload;
+  if(mode==='overlay'){const r=await detectOpening(L);if(!r)throw new Error('No usable transparent opening found');L.src=r.src;const off=await bulkOverlayCanvas(L),alphaMap=makeOverlayAlphaMap(off),path=framePath(openingWithBleed(r.pts,ffOpeningBleed,alphaMap),false),bytes=new TextEncoder().encode(path).length;if(bytes>1980)throw new Error(`Native path ${bytes}/1980 bytes`);payload={mode:'overlay',name,w:doc.canvas.w,h:doc.canvas.h,assetWidth:off.width,assetHeight:off.height,paths:[path],multiElement:false,smartMask:false,imageData:off.toDataURL('image/png')}}
+  else{const r=await detectSilhouette(L,36),paths=(r.pathDs&&r.pathDs.length?r.pathDs:[r.pathD]).filter(Boolean),bytes=paths.reduce((n,d)=>n+new TextEncoder().encode(d).length,0);if(!paths.length)throw new Error('No native silhouette path');if(bytes>1980)throw new Error(`Native path ${bytes}/1980 bytes`);const off=bulkSilhouetteCanvas(paths),blank=document.createElement('canvas');blank.width=doc.canvas.w;blank.height=doc.canvas.h;payload={mode:'silhouette',name,w:doc.canvas.w,h:doc.canvas.h,assetWidth:doc.canvas.w,assetHeight:doc.canvas.h,paths,multiElement:!!r.multiElement,smartMask:false,imageData:off.toDataURL('image/png'),overlayImageData:blank.toDataURL('image/png')}}
+  const response=await fetch(config.base+'/api/frames',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify(payload)}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);return{name,count:result.count||1}}
+if($('#btnBulk100'))$('#btnBulk100').onclick=async()=>{const raw=await uiPrompt('Bulk 100 mode','overlay','Enter overlay or silhouette. You can run a new batch for the other workflow.');if(raw==null)return;const mode=String(raw).trim().toLowerCase();if(mode!=='overlay'&&mode!=='silhouette'){toast('Enter overlay or silhouette');return}const config=await cloudLibraryConfig(false);if(!config)return;const input=document.createElement('input');input.type='file';input.accept='image/*';input.multiple=true;input.onchange=async()=>{const files=[...(input.files||[])].slice(0,100);if(!files.length)return;if((input.files||[]).length>100)toast('Only the first 100 files will be processed');const button=$('#btnBulk100'),old=button.textContent;button.disabled=true;const results=new Array(files.length);let cursor=0,done=0;const run=async()=>{while(true){const i=cursor++;if(i>=files.length)return;button.textContent=`Bulk ${done}/${files.length}`;try{const r=await bulkPublishOne(files[i],mode,config);results[i]={file:files[i].name,status:'published',name:r.name,count:r.count}}catch(e){results[i]={file:files[i].name,status:'failed',error:String(e.message||e)}}done++;button.textContent=`Bulk ${done}/${files.length}`}};try{await Promise.all(Array.from({length:Math.min(3,files.length)},run));const ok=results.filter(x=>x.status==='published').length,failed=results.length-ok,report={mode,total:files.length,published:ok,failed,createdAt:new Date().toISOString(),results};download(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),`frameforge-bulk-${mode}-report.json`);toast(`Bulk complete · ${ok} published · ${failed} failed · report downloaded`)}finally{button.disabled=false;button.textContent=old}};input.click()}
+
 $('#btnExport').onclick = () => {
   const off = exportCanvas({ scale: 2 });
   off.toBlob(b => download(b, 'mockup.png'), 'image/png');
@@ -2577,29 +2591,16 @@ async function detectOpening(L) {
     mode = 'checker';
   }
 
-  /* Extend the native photo opening below inner decorative rails/ribbons.
-     The expansion is clamped to the primary enclosed opening bounds, so
-     transparent pockets show the photo without creating an exterior halo. */
-  if (mode === 'alpha') {
-    const transparent = new Uint8Array(w * h);
-    for (let i = 0; i < w * h; i++) transparent[i] = d[i * 4 + 3] < 128 ? 1 : 0;
-    const parts = _components(transparent, w, h);
-    const enclosed = parts.items.filter(q => q.minX > 0 && q.minY > 0 && q.maxX < w - 1 && q.maxY < h - 1);
-    const main = enclosed[0];
-    if (main) {
-      const radius = Math.max(4, Math.round(Math.max(w, h) / 35));
-      const expanded = _morph(comp.mask, w, h, radius, true);
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        if (x < main.minX || x > main.maxX || y < main.minY || y > main.maxY) expanded[i] = 0;
-      }
-      let size = 0; for (const v of expanded) if (v) size++;
-      comp = { mask: expanded, size };
-    }
+  let innerEdgeLoop=null;
+  if(mode==='alpha'){
+    const transparent=new Uint8Array(w*h);for(let i=0;i<w*h;i++)transparent[i]=d[i*4+3]<128?1:0;
+    const parts=_components(transparent,w,h),enclosed=parts.items.filter(q=>q.minX>0&&q.minY>0&&q.maxX<w-1&&q.maxY<h-1),main=enclosed[0];
+    if(main){const band=main.minX+(main.maxX-main.minX)*.08,minArea=Math.max(30,w*h*.00025),low=main.minY+(main.maxY-main.minY)*.35;const q=enclosed.slice(1).find(q=>q.size>=minArea&&(q.minX+q.maxX)/2<=band&&(q.minY+q.maxY)/2>=low);if(q){const cm=_morph(_componentMask(parts.labels,q.id),w,h,1,true);innerEdgeLoop=await _maskOutline(cm,w,h,20)}}
   }
-
   const simp = await _maskOutline(comp.mask, w, h);
   if (!simp) return null;
+  let openingPts=[...simp];
+  if(innerEdgeLoop&&innerEdgeLoop.length>=3){const signed=lp=>{let a=0;for(let i=0,j=lp.length-1;i<lp.length;j=i++)a+=lp[j][0]*lp[i][1]-lp[i][0]*lp[j][1];return a};let z=innerEdgeLoop;if(Math.sign(signed(z))!==Math.sign(signed(openingPts)))z=[...z].reverse();let bi=0,ki=0,bd=Infinity;for(let i=0;i<openingPts.length;i++)for(let k=0;k<z.length;k++){const dx=openingPts[i][0]-z[k][0],dy=openingPts[i][1]-z[k][1],dd=dx*dx+dy*dy;if(dd<bd){bd=dd;bi=i;ki=k}}z=[...z.slice(ki),...z.slice(0,ki)];const anchor=openingPts[bi];openingPts.splice(bi+1,0,z[0],...z.slice(1),z[0],anchor)}
 
   /* transparent artwork: clear the detected background everywhere (hole + outside) */
   let src = L.src;
@@ -2627,7 +2628,7 @@ async function detectOpening(L) {
   return {
     mode,
     src,
-    pts: simp.map(p => ({ x: +(L.x + p[0] * sx).toFixed(1), y: +(L.y + p[1] * sy).toFixed(1) })),
+    pts: openingPts.map(p => ({ x: +(L.x + p[0] * sx).toFixed(1), y: +(L.y + p[1] * sy).toFixed(1) })),
     coverage: comp.size / (w * h)
   };
 }
