@@ -2473,7 +2473,7 @@ async function detectSilhouette(L, tolerance) {
     const splitPerson=multiCandidate&&comp.minX>w*.25&&bh>h*.45,masks=[];
     if(splitPerson){const cut=Math.round(comp.minY+bh*.56),top=new Uint8Array(cm.length),bottom=new Uint8Array(cm.length);for(let i=0;i<cm.length;i++)if(cm[i]){const y=(i-i%w)/w;if(y<=cut+1)top[i]=1;if(y>=cut-1)bottom[i]=1}masks.push(top,bottom)}else masks.push(cm);
     let made=0;
-    for(const partMask of masks){const loops=multiCandidate?await _maskOutlines(partMask,w,h,2400,.25,.5):[await _maskOutline(partMask,w,h,1400)],usable=loops.filter(Boolean);if(!usable.length)continue;const exact=_multiObjectPath(usable,L,w,h,true,1980);if(!exact)continue;outlines.push(usable[0]);pathDs.push(exact.path);made++}
+    for(const partMask of masks){const loops=await _maskOutlines(partMask,w,h,2400,.25,.5),usable=loops.filter(Boolean);if(!usable.length)continue;const exact=_multiObjectPath(usable,L,w,h,true,1980);if(!exact)continue;outlines.push(...usable);pathDs.push(exact.path);made++}
     if(made)validIds.push(comp.id);
   }
   if(!pathDs.length)throw new Error('Could not trace separated silhouette objects');
