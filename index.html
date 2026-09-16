@@ -2314,7 +2314,7 @@ function _multiObjectPath(raw,L,w,h,allowReduce=true,byteLimit=1980){
   let loops=raw.map(snap).filter(x=>x.length>=3);if(!loops.length)return null;loops.sort((a,b)=>Math.abs(area(b))-Math.abs(area(a)));
   const num=n=>String(Math.round(n)),join=(a,b)=>a+(b<0?'':' ')+b;
   const rotateNear=(pts,a)=>{let bi=0,bd=Infinity;for(let i=0;i<pts.length;i++){const d=(pts[i].x-a.x)**2+(pts[i].y-a.y)**2;if(d<bd){bd=d;bi=i}}return[...pts.slice(bi),...pts.slice(0,bi)]};
-  const walk=()=>{let base=loops[0];if(loops.length===1)return base;let anchorIndex=0,best=Infinity;for(let i=0;i<base.length;i++){let score=0;for(let j=1;j<loops.length;j++){let md=Infinity;for(const q of loops[j]){const d=(q.x-base[i].x)**2+(q.y-base[i].y)**2;if(d<md)md=d}score+=md}if(score<best){best=score;anchorIndex=i}}base=[...base.slice(anchorIndex),...base.slice(0,anchorIndex)];const anchor=base[0],seq=[...base,anchor];for(let i=1;i<loops.length;i++){const z=rotateNear(loops[i],anchor);seq.push(z[0],...z.slice(1),z[0],anchor)}return seq};
+  const walk=()=>{const base=loops[0];if(loops.length===1)return base;const attached=new Map;for(let j=1;j<loops.length;j++){let bi=0,hi=0,bd=Infinity;for(let i=0;i<base.length;i++)for(let k=0;k<loops[j].length;k++){const d=(base[i].x-loops[j][k].x)**2+(base[i].y-loops[j][k].y)**2;if(d<bd){bd=d;bi=i;hi=k}}const z=[...loops[j].slice(hi),...loops[j].slice(0,hi)];if(!attached.has(bi))attached.set(bi,[]);attached.get(bi).push(z)}const seq=[];for(let i=0;i<base.length;i++){seq.push(base[i]);for(const z of attached.get(i)||[])seq.push(z[0],...z.slice(1),z[0],base[i])}seq.push(base[0]);return seq};
   const encode=()=>{const pts=walk();let out='M'+join(num(pts[0].x),pts[0].y),state='',prev=pts[0];for(let i=1;i<pts.length;i++){const p=pts[i],dx=p.x-prev.x,dy=p.y-prev.y,pair=join(num(dx),dy),opts=[[(state==='l'?(dx<0?'':' '):'l')+pair,'l']];if(dy===0)opts.push([(state==='h'?(dx<0?'':' '):'h')+num(dx),'h']);if(dx===0)opts.push([(state==='v'?(dy<0?'':' '):'v')+num(dy),'v']);opts.sort((a,b)=>a[0].length-b[0].length);out+=opts[0][0];state=opts[0][1];prev=p}return out+'z'};
   const candidate=(pts,loopIndex)=>{const sign=Math.sign(area(pts))||1;let best=null;for(let i=0;i<pts.length;i++){const a=pts[(i-1+pts.length)%pts.length],b=pts[i],c=pts[(i+1)%pts.length],cross=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),concave=cross*sign<0;let score=Math.max(.01,Math.abs(cross));const inX=b.x-a.x,inY=b.y-a.y,outX=c.x-b.x,outY=c.y-b.y,inLen=Math.hypot(inX,inY),outLen=Math.hypot(outX,outY);if(inLen&&outLen){const cos=Math.max(-1,Math.min(1,(inX*outX+inY*outY)/(inLen*outLen))),turn=1-cos;score+=turn*14;if(turn>.35)score*=1+turn*7}if(concave)score*=16;if(loopIndex>0)score*=32;const ux=a.x-b.x,uy=a.y-b.y,vx=c.x-b.x,vy=c.y-b.y,ul=Math.hypot(ux,uy),vl=Math.hypot(vx,vy);if(concave&&ul&&vl&&(ux*vx+uy*vy)/(ul*vl)>-.3)score*=4;if(!best||score<best.score)best={i,score}}return best};
   let path=encode(),guard=0;if(!allowReduce&&new TextEncoder().encode(path).byteLength>byteLimit)return null;
@@ -2360,8 +2360,8 @@ async function _maskOutlines(mask,w,h,maxPoints=90,startEps=2,minArea=1){
   // islands. Detect those islands explicitly so hand/hair openings exist
   // before any byte-budget simplification starts.
   const background=new Uint8Array(mask.length);for(let i=0;i<mask.length;i++)background[i]=mask[i]?0:1;
-  const cc=_components(background,w,h),holes=[];
-  for(const comp of cc.items){const touches=comp.minX===0||comp.minY===0||comp.maxX===w-1||comp.maxY===h-1;if(touches||comp.size<Math.max(8,minArea))continue;
+  const cc=_components(background,w,h),holes=[],minHoleArea=Math.max(40,w*h*.00045);
+  for(const comp of cc.items.slice(0,12)){const touches=comp.minX===0||comp.minY===0||comp.maxX===w-1||comp.maxY===h-1;if(touches||comp.size<Math.max(minHoleArea,minArea)||holes.length>=6)continue;
     let holeMask=_componentMask(cc.labels,comp.id);holeMask=_morph(holeMask,w,h,1,true);const traced=await traceMask(holeMask);if(!traced.length)continue;let hole=traced[0];
     // Hole winding must oppose the primary foreground contour.
     if(Math.sign(signedArea(hole))===Math.sign(signedArea(outer[0])))hole=[...hole].reverse();holes.push(hole);
@@ -2443,6 +2443,11 @@ function _svgSilhouettePath(L){
 
 /* Subject silhouette -> one polygon frame. Alpha is preferred; opaque images
    use a border-connected colour key so cuts reaching the edge stay open. */
+function _nativeSilhouetteQuality(pathDs,mask,L,w,h){
+  const c=document.createElement('canvas');c.width=Math.max(2,Math.ceil(doc.canvas.w));c.height=Math.max(2,Math.ceil(doc.canvas.h));const x=c.getContext('2d',{willReadFrequently:true}),p=new Path2D();for(const d of pathDs)if(d)p.addPath(new Path2D(d));x.fill(p);const out=x.getImageData(0,0,c.width,c.height).data;let fg=0,bg=0,miss=0,extra=0;
+  for(let sy=1;sy<h;sy+=2)for(let sx=1;sx<w;sx+=2){const expected=!!mask[sy*w+sx],px=Math.max(0,Math.min(c.width-1,Math.round(L.x+sx/w*L.w))),py=Math.max(0,Math.min(c.height-1,Math.round(L.y+sy/h*L.h))),filled=out[(py*c.width+px)*4+3]>127;if(expected){fg++;if(!filled)miss++}else{bg++;if(filled)extra++}}
+  return{missRate:fg?miss/fg:1,extraRate:bg?extra/bg:1};
+}
 async function detectSilhouette(L, tolerance) {
   const img=await loadImg(L.src);
   if(Math.abs(L.rotation||0)>.01) throw new Error('Reset layer rotation before tracing');
@@ -2490,6 +2495,7 @@ async function detectSilhouette(L, tolerance) {
     if(pending.length){const done=_multiObjectPath(pending,L,w,h,false,1900)||_multiObjectPath(pending,L,w,h,true,1900);if(done)groups.push(done.path)}
     if(pathDs.length+groups.length<=12){pathDs.push(...groups);detailFrameCount=groups.length;detailPixels=0}else detailOverlayDataUrl=_detailOverlayDataUrl(detailMask,L,w,h);
   }else if(detailPixels)detailOverlayDataUrl=_detailOverlayDataUrl(detailMask,L,w,h);
+  const qa=_nativeSilhouetteQuality(pathDs,mask,L,w,h);if(qa.missRate>.04||qa.extraRate>.02)throw new Error(`Too detailed for one safe native Canva frame (shape loss ${Math.round(qa.missRate*100)}%). Try a cleaner silhouette.`);
   const pts=outlines.flat().map(p=>({x:+(L.x+p[0]*sx).toFixed(1),y:+(L.y+p[1]*sy).toFixed(1)}));
   return{mode:pathDs.length>1?'exact multi-element':'raster',pathD:pathDs[0],pathDs,pts,objectCount:pathDs.length,heroCount:validIds.length,detailFrameCount,multiElement:pathDs.length>1,detailOverlayDataUrl,detailPixels,detailCount:detailFrameCount,smartMask:false,smartMaskDataUrl:null};
 }
