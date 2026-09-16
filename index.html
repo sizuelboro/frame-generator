@@ -2591,16 +2591,20 @@ async function detectOpening(L) {
     mode = 'checker';
   }
 
-  let innerEdgeLoop=null;
+  let innerEdgeLoop=null,rectOpening=null;
   if(mode==='alpha'){
     const transparent=new Uint8Array(w*h);for(let i=0;i<w*h;i++)transparent[i]=d[i*4+3]<128?1:0;
     const parts=_components(transparent,w,h),enclosed=parts.items.filter(q=>q.minX>0&&q.minY>0&&q.maxX<w-1&&q.maxY<h-1),main=enclosed[0];
-    if(main){const band=main.minX+(main.maxX-main.minX)*.08,minArea=Math.max(30,w*h*.00025),low=main.minY+(main.maxY-main.minY)*.35;const q=enclosed.slice(1).find(q=>q.size>=minArea&&(q.minX+q.maxX)/2<=band&&(q.minY+q.maxY)/2>=low);if(q){const cm=_morph(_componentMask(parts.labels,q.id),w,h,1,true);innerEdgeLoop=await _maskOutline(cm,w,h,20)}}
+    if(main){
+      const boxArea=(main.maxX-main.minX+1)*(main.maxY-main.minY+1),rectangularity=boxArea?main.size/boxArea:0;
+      if(rectangularity>=.82){rectOpening=[[main.minX,main.minY],[main.maxX,main.minY],[main.maxX,main.maxY],[main.minX,main.maxY]]}
+      else{const band=main.minX+(main.maxX-main.minX)*.08,minArea=Math.max(30,w*h*.00025),low=main.minY+(main.maxY-main.minY)*.35,q=enclosed.slice(1).find(q=>q.size>=minArea&&(q.minX+q.maxX)/2<=band&&(q.minY+q.maxY)/2>=low);if(q){const cm=_morph(_componentMask(parts.labels,q.id),w,h,1,true);innerEdgeLoop=await _maskOutline(cm,w,h,20)}}
+    }
   }
-  const simp = await _maskOutline(comp.mask, w, h);
-  if (!simp) return null;
+  const simp=rectOpening||await _maskOutline(comp.mask,w,h);
+  if(!simp)return null;
   let openingPts=[...simp];
-  if(innerEdgeLoop&&innerEdgeLoop.length>=3){const signed=lp=>{let a=0;for(let i=0,j=lp.length-1;i<lp.length;j=i++)a+=lp[j][0]*lp[i][1]-lp[i][0]*lp[j][1];return a};let z=innerEdgeLoop;if(Math.sign(signed(z))!==Math.sign(signed(openingPts)))z=[...z].reverse();let bi=0,ki=0,bd=Infinity;for(let i=0;i<openingPts.length;i++)for(let k=0;k<z.length;k++){const dx=openingPts[i][0]-z[k][0],dy=openingPts[i][1]-z[k][1],dd=dx*dx+dy*dy;if(dd<bd){bd=dd;bi=i;ki=k}}z=[...z.slice(ki),...z.slice(0,ki)];const anchor=openingPts[bi];openingPts.splice(bi+1,0,z[0],...z.slice(1),z[0],anchor)}
+  if(!rectOpening&&innerEdgeLoop&&innerEdgeLoop.length>=3){const signed=lp=>{let a=0;for(let i=0,j=lp.length-1;i<lp.length;j=i++)a+=lp[j][0]*lp[i][1]-lp[i][0]*lp[j][1];return a};let z=innerEdgeLoop;if(Math.sign(signed(z))!==Math.sign(signed(openingPts)))z=[...z].reverse();let bi=0,ki=0,bd=Infinity;for(let i=0;i<openingPts.length;i++)for(let k=0;k<z.length;k++){const dx=openingPts[i][0]-z[k][0],dy=openingPts[i][1]-z[k][1],dd=dx*dx+dy*dy;if(dd<bd){bd=dd;bi=i;ki=k}}z=[...z.slice(ki),...z.slice(0,ki)];const anchor=openingPts[bi];openingPts.splice(bi+1,0,z[0],...z.slice(1),z[0],anchor)}
 
   /* transparent artwork: clear the detected background everywhere (hole + outside) */
   let src = L.src;
