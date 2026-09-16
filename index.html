@@ -1423,13 +1423,9 @@ $('#btnPublishCloud').onclick = async () => {
   if(!frames.length){toast('Create or select a frame first');return}if(!silhouetteMode&&!overlays.length){toast('Add a transparent overlay, or select a Silhouette Frame');return}
   const config=await cloudLibraryConfig(false);if(!config)return;const name=prompt('Name shown in Canva Dev library',localStorage.getItem('frameforge.lastPublishName')||'New Mockup Frame');if(!name||!name.trim())return;localStorage.setItem('frameforge.lastPublishName',name.trim());
   const alphaMap=silhouetteMode?null:makeOverlayAlphaMap();if(!silhouetteMode&&!alphaMap&&ffOpeningBleed>0)toast('Overlay alpha could not be inspected · publishing without bleed');
-  const paths=frames.flatMap(f=>silhouetteMode?((f.pathDs&&f.pathDs.length)?f.pathDs:[f.pathD||framePath(f.points,true)]):[framePath(openingWithBleed(f.points,ffOpeningBleed,alphaMap),false)]).filter(Boolean),overlayPath=silhouetteMode?'':`M 0 0 H ${doc.canvas.w} V ${doc.canvas.h} H 0 Z`,multiElement=!!(silhouetteMode&&frames[0].multiElement&&paths.length>1);
+  const paths=frames.flatMap(f=>silhouetteMode?((f.pathDs&&f.pathDs.length)?f.pathDs:[f.pathD||framePath(f.points,true)]):[framePath(openingWithBleed(f.points,ffOpeningBleed,alphaMap),false)]).filter(Boolean),overlayPath=silhouetteMode?'':`M 0 0 H ${doc.canvas.w} V ${doc.canvas.h} H 0 Z`,multiElement=!!(silhouetteMode&&frames[0].multiElement&&paths.length>1),smartMask=!!(silhouetteMode&&frames[0].smartMask&&frames[0].smartMaskDataUrl);
   const byteSizes=paths.map(p=>new TextEncoder().encode(p).length),bytes=new TextEncoder().encode([overlayPath,...paths].join('')).length,total=paths.length+(silhouetteMode?0:1);
-  const nativeMultiOk=multiElement&&paths.length<=12&&byteSizes.every(n=>n<=2048);
-  const smartMaskAvailable=!!(silhouetteMode&&frames[0].smartMask&&frames[0].smartMaskDataUrl);
-  const smartMask=smartMaskAvailable&&!nativeMultiOk;
-  if(!smartMask&&multiElement){if(paths.length>12||byteSizes.some(n=>n>2048)){toast(`Exact multi limit exceeded: ${paths.length}/12 objects · max ${Math.max(...byteSizes)}/2048 bytes`);return}}
-  else if(!smartMask&&(paths.length>29||bytes>2048)){toast(`Canva path limit exceeded: ${total} paths, ${bytes}/2048 bytes`);return}
+  if(!smartMask&&(paths.length>29||bytes>1980)){toast(`Native Canva path budget exceeded: ${bytes}/1980 safe bytes · simplify the artwork`);return}
   const button=$('#btnPublishCloud'),text=button.textContent;button.disabled=true;button.textContent='Publishing…';
   try{const off=silhouetteMode?silhouetteThumbnail(frames):exportCanvas({scale:2,only:['overlay'],bg:false});const blank=silhouetteMode?silhouetteTransparentOverlay():null,overlayImageData=silhouetteMode?(frames[0].detailOverlayDataUrl||(blank&&blank.toDataURL('image/png'))):undefined;const response=await fetch(config.base+'/api/frames',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify({mode:smartMask?'smart-mask':(silhouetteMode?'silhouette':'overlay'),name:name.trim(),w:doc.canvas.w,h:doc.canvas.h,assetWidth:silhouetteMode?doc.canvas.w:off.width,assetHeight:silhouetteMode?doc.canvas.h:off.height,paths:smartMask?[]:paths,multiElement:smartMask?false:multiElement,smartMask,maskImageData:smartMask?frames[0].smartMaskDataUrl:undefined,imageData:off.toDataURL('image/png'),overlayImageData})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);toast(`${name.trim()} published as ${silhouetteMode?(multiElement?('exact multi-element silhouette · '+paths.length+' aligned frames'):(frames[0].detailOverlayDataUrl?'smart silhouette + detail overlay':'one silhouette drop target')):'overlay frame'} · ${result.count} frame(s) in library`)}catch(e){toast('Publish failed: '+String(e.message||e))}finally{button.disabled=false;button.textContent=text}
 };
@@ -2312,17 +2308,18 @@ function _detailOverlayDataUrl(mask,L,w,h){
   const out=document.createElement('canvas');out.width=Math.max(2,Math.round(doc.canvas.w));out.height=Math.max(2,Math.round(doc.canvas.h));const ox=out.getContext('2d');ox.imageSmoothingEnabled=true;ox.imageSmoothingQuality='high';ox.drawImage(m,L.x,L.y,L.w,L.h);return out.toDataURL('image/png');
 }
 function _multiObjectPath(raw,L,w,h,allowReduce=true,byteLimit=1980){
-  const sx=L.w/w,sy=L.h/h,area=pts=>{let a=0;for(let i=0,j=pts.length-1;i<pts.length;j=i++)a+=pts[j].x*pts[i].y-pts[i].x*pts[j].y;return a},snap=pts=>pts.map(p=>({x:Math.round(L.x+p[0]*sx),y:Math.round(L.y+p[1]*sy)}));
-  // Marching-squares already emits outer and inner contours with opposite
-  // winding. Preserve it exactly; normalising every contour fills leg/hair
-  // cut-outs that must remain transparent.
+  const sx=L.w/w,sy=L.h/h;
+  const area=pts=>{let a=0;for(let i=0,j=pts.length-1;i<pts.length;j=i++)a+=pts[j].x*pts[i].y-pts[i].x*pts[j].y;return a};
+  const snap=pts=>{const out=[];for(const p of pts){const q={x:Math.round(L.x+p[0]*sx),y:Math.round(L.y+p[1]*sy)};if(!out.length||q.x!==out[out.length-1].x||q.y!==out[out.length-1].y)out.push(q)}if(out.length>1&&out[0].x===out[out.length-1].x&&out[0].y===out[out.length-1].y)out.pop();return out};
   let loops=raw.map(snap).filter(x=>x.length>=3);if(!loops.length)return null;loops.sort((a,b)=>Math.abs(area(b))-Math.abs(area(a)));
+  const num=n=>String(Math.round(n)),join=(a,b)=>a+(b<0?'':' ')+b;
   const rotateNear=(pts,a)=>{let bi=0,bd=Infinity;for(let i=0;i<pts.length;i++){const d=(pts[i].x-a.x)**2+(pts[i].y-a.y)**2;if(d<bd){bd=d;bi=i}}return[...pts.slice(bi),...pts.slice(0,bi)]};
-  const enc=()=>{const base=loops[0],a=base[0],seq=(pts,start)=>{let cur=start,v=[];for(const q of pts){v.push((q.x-cur.x)+' '+(q.y-cur.y));cur=q}return v.length?'l'+v.join(' '):''};let out='M '+a.x+' '+a.y+seq(base.slice(1),a)+'L '+a.x+' '+a.y;
-    for(let i=1;i<loops.length;i++){const z=rotateNear(loops[i],a);out+='L '+z[0].x+' '+z[0].y+seq(z.slice(1),z[0])+'L '+z[0].x+' '+z[0].y+'L '+a.x+' '+a.y}return out+'Z'};
-  const dropLeast=pts=>{if(pts.length<=6)return pts;let bi=0,bv=Infinity;for(let i=0;i<pts.length;i++){const a=pts[(i-1+pts.length)%pts.length],b=pts[i],c=pts[(i+1)%pts.length],v=Math.abs((b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x));if(v<bv){bv=v;bi=i}}return pts.filter((_,i)=>i!==bi)};
-  let path=enc(),guard=0;if(!allowReduce&&new TextEncoder().encode(path).length>byteLimit)return null;while(new TextEncoder().encode(path).length>byteLimit&&guard++<4000){let at=-1,n=6;for(let i=0;i<loops.length;i++)if(loops[i].length>n){n=loops[i].length;at=i}if(at<0)return null;loops[at]=dropLeast(loops[at]);path=enc()}
-  return new TextEncoder().encode(path).length<=2000&&((path.match(/[Mm]/g)||[]).length===1)?{path,loops}:null;
+  const walk=()=>{const base=loops[0],anchor=base[0],seq=[...base,anchor];for(let i=1;i<loops.length;i++){const z=rotateNear(loops[i],anchor);seq.push(z[0],...z.slice(1),z[0],anchor)}return seq};
+  const encode=()=>{const pts=walk();let out='M'+join(num(pts[0].x),pts[0].y),state='',prev=pts[0];for(let i=1;i<pts.length;i++){const p=pts[i],dx=p.x-prev.x,dy=p.y-prev.y,pair=join(num(dx),dy),opts=[[(state==='l'?(dx<0?'':' '):'l')+pair,'l']];if(dy===0)opts.push([(state==='h'?(dx<0?'':' '):'h')+num(dx),'h']);if(dx===0)opts.push([(state==='v'?(dy<0?'':' '):'v')+num(dy),'v']);opts.sort((a,b)=>a[0].length-b[0].length);out+=opts[0][0];state=opts[0][1];prev=p}return out+'z'};
+  const candidate=(pts,loopIndex)=>{const sign=Math.sign(area(pts))||1;let best=null;for(let i=0;i<pts.length;i++){const a=pts[(i-1+pts.length)%pts.length],b=pts[i],c=pts[(i+1)%pts.length],cross=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),concave=cross*sign<0;let score=Math.max(.01,Math.abs(cross));if(concave)score*=16;if(loopIndex>0)score*=12;const ux=a.x-b.x,uy=a.y-b.y,vx=c.x-b.x,vy=c.y-b.y,ul=Math.hypot(ux,uy),vl=Math.hypot(vx,vy);if(concave&&ul&&vl&&(ux*vx+uy*vy)/(ul*vl)>-.3)score*=4;if(!best||score<best.score)best={i,score}}return best};
+  let path=encode(),guard=0;if(!allowReduce&&new TextEncoder().encode(path).byteLength>byteLimit)return null;
+  while(new TextEncoder().encode(path).byteLength>byteLimit&&guard++<5000){let pick=null;for(let j=0;j<loops.length;j++){if(loops[j].length<=6)continue;const c=candidate(loops[j],j);if(c&&(!pick||c.score<pick.score))pick={...c,j}}if(!pick)return null;loops[pick.j]=loops[pick.j].filter((_,i)=>i!==pick.i);path=encode()}
+  const bytes=new TextEncoder().encode(path).byteLength;return bytes<=byteLimit&&((path.match(/[Mm]/g)||[]).length===1)?{path,loops,bytes}:null;
 }
 
 /* artwork mask -> largest enclosed opening, robust to texture and thin cuts */
@@ -2487,9 +2484,7 @@ async function detectSilhouette(L, tolerance) {
     if(pathDs.length+groups.length<=12){pathDs.push(...groups);detailFrameCount=groups.length;detailPixels=0}else detailOverlayDataUrl=_detailOverlayDataUrl(detailMask,L,w,h);
   }else if(detailPixels)detailOverlayDataUrl=_detailOverlayDataUrl(detailMask,L,w,h);
   const pts=outlines.flat().map(p=>({x:+(L.x+p[0]*sx).toFixed(1),y:+(L.y+p[1]*sy).toFixed(1)}));
-  const nativeMultiOk=pathDs.length>1&&pathDs.length<=12&&pathDs.every(path=>new TextEncoder().encode(path).length<=2048);
-  const useSmartMask=multiCandidate&&!nativeMultiOk;
-  return{mode:pathDs.length>1?'exact multi-element':'raster',pathD:pathDs[0],pathDs,pts,objectCount:pathDs.length,heroCount:validIds.length,detailFrameCount,multiElement:pathDs.length>1,detailOverlayDataUrl,detailPixels,detailCount:detailFrameCount,smartMask:useSmartMask,smartMaskDataUrl:useSmartMask?_detailOverlayDataUrl(mask,L,w,h):null};
+  return{mode:pathDs.length>1?'exact multi-element':'raster',pathD:pathDs[0],pathDs,pts,objectCount:pathDs.length,heroCount:validIds.length,detailFrameCount,multiElement:pathDs.length>1,detailOverlayDataUrl,detailPixels,detailCount:detailFrameCount,smartMask:false,smartMaskDataUrl:null};
 }
 async function silhouetteFrameApply(L,tolerance){
   const r=await detectSilhouette(L,tolerance),fr={id:uid(),type:'frame',name:(L.name||'Artwork')+' Silhouette Frame',frameType:'polygon',publishMode:'silhouette',sourceLayerId:L.id,pathD:r.pathD||null,pathDs:r.pathDs||null,multiElement:!!r.multiElement,objectCount:r.objectCount||1,detailOverlayDataUrl:r.detailOverlayDataUrl||null,detailPixels:r.detailPixels||0,detailCount:r.detailCount||0,smartMask:!!r.smartMask,smartMaskDataUrl:r.smartMaskDataUrl||null,visible:true,locked:false,opacity:1,points:r.pts,content:null};
