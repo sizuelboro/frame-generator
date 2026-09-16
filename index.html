@@ -2577,6 +2577,27 @@ async function detectOpening(L) {
     mode = 'checker';
   }
 
+  /* Extend the native photo opening below inner decorative rails/ribbons.
+     The expansion is clamped to the primary enclosed opening bounds, so
+     transparent pockets show the photo without creating an exterior halo. */
+  if (mode === 'alpha') {
+    const transparent = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) transparent[i] = d[i * 4 + 3] < 128 ? 1 : 0;
+    const parts = _components(transparent, w, h);
+    const enclosed = parts.items.filter(q => q.minX > 0 && q.minY > 0 && q.maxX < w - 1 && q.maxY < h - 1);
+    const main = enclosed[0];
+    if (main) {
+      const radius = Math.max(4, Math.round(Math.max(w, h) / 35));
+      const expanded = _morph(comp.mask, w, h, radius, true);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (x < main.minX || x > main.maxX || y < main.minY || y > main.maxY) expanded[i] = 0;
+      }
+      let size = 0; for (const v of expanded) if (v) size++;
+      comp = { mask: expanded, size };
+    }
+  }
+
   const simp = await _maskOutline(comp.mask, w, h);
   if (!simp) return null;
 
