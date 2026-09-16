@@ -2314,9 +2314,9 @@ function _multiObjectPath(raw,L,w,h,allowReduce=true,byteLimit=1980){
   let loops=raw.map(snap).filter(x=>x.length>=3);if(!loops.length)return null;loops.sort((a,b)=>Math.abs(area(b))-Math.abs(area(a)));
   const num=n=>String(Math.round(n)),join=(a,b)=>a+(b<0?'':' ')+b;
   const rotateNear=(pts,a)=>{let bi=0,bd=Infinity;for(let i=0;i<pts.length;i++){const d=(pts[i].x-a.x)**2+(pts[i].y-a.y)**2;if(d<bd){bd=d;bi=i}}return[...pts.slice(bi),...pts.slice(0,bi)]};
-  const walk=()=>{const base=loops[0],anchor=base[0],seq=[...base,anchor];for(let i=1;i<loops.length;i++){const z=rotateNear(loops[i],anchor);seq.push(z[0],...z.slice(1),z[0],anchor)}return seq};
+  const walk=()=>{let base=loops[0];if(loops.length===1)return base;let anchorIndex=0,best=Infinity;for(let i=0;i<base.length;i++){let score=0;for(let j=1;j<loops.length;j++){let md=Infinity;for(const q of loops[j]){const d=(q.x-base[i].x)**2+(q.y-base[i].y)**2;if(d<md)md=d}score+=md}if(score<best){best=score;anchorIndex=i}}base=[...base.slice(anchorIndex),...base.slice(0,anchorIndex)];const anchor=base[0],seq=[...base,anchor];for(let i=1;i<loops.length;i++){const z=rotateNear(loops[i],anchor);seq.push(z[0],...z.slice(1),z[0],anchor)}return seq};
   const encode=()=>{const pts=walk();let out='M'+join(num(pts[0].x),pts[0].y),state='',prev=pts[0];for(let i=1;i<pts.length;i++){const p=pts[i],dx=p.x-prev.x,dy=p.y-prev.y,pair=join(num(dx),dy),opts=[[(state==='l'?(dx<0?'':' '):'l')+pair,'l']];if(dy===0)opts.push([(state==='h'?(dx<0?'':' '):'h')+num(dx),'h']);if(dx===0)opts.push([(state==='v'?(dy<0?'':' '):'v')+num(dy),'v']);opts.sort((a,b)=>a[0].length-b[0].length);out+=opts[0][0];state=opts[0][1];prev=p}return out+'z'};
-  const candidate=(pts,loopIndex)=>{const sign=Math.sign(area(pts))||1;let best=null;for(let i=0;i<pts.length;i++){const a=pts[(i-1+pts.length)%pts.length],b=pts[i],c=pts[(i+1)%pts.length],cross=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),concave=cross*sign<0;let score=Math.max(.01,Math.abs(cross));if(concave)score*=16;if(loopIndex>0)score*=12;const ux=a.x-b.x,uy=a.y-b.y,vx=c.x-b.x,vy=c.y-b.y,ul=Math.hypot(ux,uy),vl=Math.hypot(vx,vy);if(concave&&ul&&vl&&(ux*vx+uy*vy)/(ul*vl)>-.3)score*=4;if(!best||score<best.score)best={i,score}}return best};
+  const candidate=(pts,loopIndex)=>{const sign=Math.sign(area(pts))||1;let best=null;for(let i=0;i<pts.length;i++){const a=pts[(i-1+pts.length)%pts.length],b=pts[i],c=pts[(i+1)%pts.length],cross=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),concave=cross*sign<0;let score=Math.max(.01,Math.abs(cross));if(concave)score*=16;if(loopIndex>0)score*=32;const ux=a.x-b.x,uy=a.y-b.y,vx=c.x-b.x,vy=c.y-b.y,ul=Math.hypot(ux,uy),vl=Math.hypot(vx,vy);if(concave&&ul&&vl&&(ux*vx+uy*vy)/(ul*vl)>-.3)score*=4;if(!best||score<best.score)best={i,score}}return best};
   let path=encode(),guard=0;if(!allowReduce&&new TextEncoder().encode(path).byteLength>byteLimit)return null;
   while(new TextEncoder().encode(path).byteLength>byteLimit&&guard++<5000){let pick=null;for(let j=0;j<loops.length;j++){if(loops[j].length<=6)continue;const c=candidate(loops[j],j);if(c&&(!pick||c.score<pick.score))pick={...c,j}}if(!pick)return null;loops[pick.j]=loops[pick.j].filter((_,i)=>i!==pick.i);path=encode()}
   const bytes=new TextEncoder().encode(path).byteLength;return bytes<=byteLimit&&((path.match(/[Mm]/g)||[]).length===1)?{path,loops,bytes}:null;
@@ -2344,22 +2344,29 @@ function _openingMask(isBg, w, h) {
 
 /* All contours, including tiny inner white cut-outs. */
 async function _maskOutlines(mask,w,h,maxPoints=90,startEps=2,minArea=1){
-
-  const m = document.createElement('canvas');
-  m.width = w; m.height = h;
-  const mc = m.getContext('2d');
-  const mi = mc.createImageData(w, h);
-  for (let i = 0; i < w * h; i++) if (mask[i]) mi.data[i * 4 + 3] = 255;
-  mc.putImageData(mi, 0, 0);
-  const mimg = await loadImg(m.toDataURL('image/png'));
-  const tr = traceAlpha(mimg, 128, 900);
-  if (!tr.loops.length) return [];
-  const area = lp => {
-    let a = 0;
-    for (let i = 0, j = lp.length - 1; i < lp.length; j = i++) a += lp[j][0] * lp[i][1] - lp[i][0] * lp[j][1];
-    return Math.abs(a) / 2;
+  const signedArea=lp=>{let a=0;for(let i=0,j=lp.length-1;i<lp.length;j=i++)a+=lp[j][0]*lp[i][1]-lp[i][0]*lp[j][1];return a/2};
+  const traceMask=async source=>{
+    const m=document.createElement('canvas');m.width=w;m.height=h;const mc=m.getContext('2d'),mi=mc.createImageData(w,h);
+    for(let i=0;i<w*h;i++)if(source[i])mi.data[i*4+3]=255;mc.putImageData(mi,0,0);
+    const tr=traceAlpha(await loadImg(m.toDataURL('image/png')),128,900),out=[];
+    for(let loop of tr.loops.sort((a,b)=>Math.abs(signedArea(b))-Math.abs(signedArea(a)))){
+      loop=loop.map(q=>[q[0]*tr.scale,q[1]*tr.scale]);if(Math.abs(signedArea(loop))<minArea)continue;
+      let eps=startEps,simp=simplify(loop,eps);while(simp.length>maxPoints&&eps<60){eps*=1.2;simp=simplify(loop,eps)}
+      if(simp.length>3&&simp[0][0]===simp[simp.length-1][0]&&simp[0][1]===simp[simp.length-1][1])simp.pop();if(simp.length>=3)out.push(simp);
+    }return out;
   };
-  const kept=[];for(let loop of tr.loops.sort((a,b)=>area(b)-area(a))){if(area(loop)<minArea)continue;loop=loop.map(p=>[p[0]*tr.scale,p[1]*tr.scale]);let eps=startEps,simp=simplify(loop,eps);while(simp.length>maxPoints&&eps<60){eps*=1.2;simp=simplify(loop,eps)}if(simp.length>3&&simp[0][0]===simp[simp.length-1][0]&&simp[0][1]===simp[simp.length-1][1])simp.pop();if(simp.length>=3)kept.push(simp)}return kept;
+  const outer=await traceMask(mask);if(!outer.length)return[];
+  // traceAlpha follows the foreground edge but may omit fully enclosed white
+  // islands. Detect those islands explicitly so hand/hair openings exist
+  // before any byte-budget simplification starts.
+  const background=new Uint8Array(mask.length);for(let i=0;i<mask.length;i++)background[i]=mask[i]?0:1;
+  const cc=_components(background,w,h),holes=[];
+  for(const comp of cc.items){const touches=comp.minX===0||comp.minY===0||comp.maxX===w-1||comp.maxY===h-1;if(touches||comp.size<Math.max(8,minArea))continue;
+    let holeMask=_componentMask(cc.labels,comp.id);holeMask=_morph(holeMask,w,h,1,true);const traced=await traceMask(holeMask);if(!traced.length)continue;let hole=traced[0];
+    // Hole winding must oppose the primary foreground contour.
+    if(Math.sign(signedArea(hole))===Math.sign(signedArea(outer[0])))hole=[...hole].reverse();holes.push(hole);
+  }
+  return[outer[0],...holes];
 }
 async function _maskOutline(mask,w,h,maxPoints=90){const loops=await _maskOutlines(mask,w,h,maxPoints,2,4);return loops[0]||null}
 
@@ -2453,7 +2460,7 @@ async function detectSilhouette(L, tolerance) {
     const out=new Uint8Array(w*h),st=[];const push=p=>{if(p>=0&&p<w*h&&!out[p]&&near(p)){out[p]=1;st.push(p)}};
     for(let a=0;a<w;a++){push(a);push((h-1)*w+a)}for(let b=0;b<h;b++){push(b*w);push(b*w+w-1)}
     while(st.length){const p=st.pop(),a=p%w;if(a)push(p-1);if(a<w-1)push(p+1);if(p>=w)push(p-w);if(p<w*(h-1))push(p+w)}
-    for(let i=0;i<w*h;i++)mask[i]=out[i]?0:1;
+    for(let i=0;i<w*h;i++)mask[i]=near(i)?0:1;
   }
   const cc=_components(mask,w,h),largest=cc.items[0];if(!largest)throw new Error('No usable silhouette found');
   const coverage=cc.items.reduce((n,c)=>n+c.size,0)/(w*h);if(coverage<.005)throw new Error('No usable silhouette found');if(coverage>.96)throw new Error('Background was not detected');
