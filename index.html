@@ -167,6 +167,15 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
   .stage{min-height:62vh}
 }
 </style>
+
+<style id="ff-folder-picker-styles">
+.ff-folder-backdrop{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,17,21,.52);font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#171717}
+.ff-folder-dialog{display:grid;gap:16px;width:min(460px,calc(100vw - 32px));max-height:min(680px,calc(100vh - 32px));padding:20px;border:1px solid #e6e5e3;border-radius:14px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+.ff-folder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.ff-folder-titles{display:grid;gap:3px}.ff-folder-eyebrow{color:#2783de;font-size:11px;font-weight:750;letter-spacing:.12em}.ff-folder-dialog h2{margin:0;font-size:22px;line-height:1.2}.ff-folder-dialog p{margin:0;color:#6f6d69;font-size:13px}.ff-folder-icon{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid transparent;border-radius:8px;background:#fff;color:#444;font-size:22px;cursor:pointer}.ff-folder-icon:hover{background:#f0efed}
+.ff-folder-list{display:grid;gap:6px;min-height:52px;max-height:330px;overflow:auto;padding:2px}.ff-folder-row{display:grid;grid-template-columns:28px minmax(0,1fr) 24px;align-items:center;gap:8px;width:100%;min-height:48px;padding:8px 12px;border:1px solid #e6e5e3;border-radius:10px;background:#fff;color:#2c2c2b;text-align:left;cursor:pointer}.ff-folder-row:hover{background:#f9f8f7}.ff-folder-row.selected{border-color:#8b3dff;background:#f4ecff;color:#5f1abd}.ff-folder-row-icon{font-size:18px}.ff-folder-row-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}.ff-folder-check{font-size:16px;font-weight:750;text-align:center}
+.ff-folder-create{display:grid;gap:8px}.ff-folder-new{justify-self:start;min-height:40px;padding:8px 12px;border:1px solid #d9d7d3;border-radius:8px;background:#fff;color:#5f1abd;font-weight:650;cursor:pointer}.ff-folder-new:hover{background:#f4ecff}.ff-folder-fieldrow{display:none;grid-template-columns:minmax(0,1fr) auto;gap:8px}.ff-folder-fieldrow.show{display:grid}.ff-folder-input{min-width:0;height:42px;padding:8px 11px;border:1px solid #b8b6b2;border-radius:8px;font:inherit;outline:none}.ff-folder-input:focus{border-color:#8b3dff;box-shadow:0 0 0 2px rgba(139,61,255,.15)}.ff-folder-add,.ff-folder-primary{min-height:42px;padding:8px 14px;border:1px solid #8b3dff;border-radius:8px;background:#8b3dff;color:#fff;font-weight:700;cursor:pointer}.ff-folder-add:disabled{opacity:.55}.ff-folder-error:empty{display:none}.ff-folder-error{padding:9px 10px;border-radius:8px;background:#fce9e7;color:#9a2820;font-size:12px}.ff-folder-actions{display:flex;justify-content:flex-end;gap:8px}.ff-folder-secondary{min-height:42px;padding:8px 14px;border:1px solid #d9d7d3;border-radius:8px;background:#fff;color:#2c2c2b;font-weight:650;cursor:pointer}
+@media(max-width:540px){.ff-folder-backdrop{align-items:flex-end;padding:0}.ff-folder-dialog{width:100%;max-height:88vh;border-radius:16px 16px 0 0;padding:18px}.ff-folder-list{max-height:40vh}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1417,7 +1426,26 @@ $('#btnLibrarySettings').onclick = async () => {
   if (config) toast('Cloud library settings saved');
 };
 async function cloudLibraryData(config){const response=await fetch(config.base+'/api/frames',{cache:'no-store'}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data}
-async function cloudChooseFolder(config){const data=await cloudLibraryData(config);if(data.folderSystem!==true)throw new Error('Worker v7.0 is required for folders');const folders=Array.isArray(data.folders)?data.folders:[],list=folders.map(x=>x.name).join(', '),raw=prompt('Publish folder (blank = Uncategorized)'+(list?'\nExisting: '+list:''),'');if(raw==null)return null;const name=raw.trim();if(!name)return{id:'',name:'Uncategorized',data};let found=folders.find(x=>x.name.toLowerCase()===name.toLowerCase());if(found)return{id:found.id,name:found.name,data};if(!confirm(`Folder "${name}" does not exist. Create it?`))return null;const response=await fetch(config.base+'/api/folders',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify({name})}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);return{id:result.folder.id,name:result.folder.name,data:{...data,folders:result.folders}}}
+function cloudFolderPicker(data,config){return new Promise(resolve=>{
+  let folders=Array.isArray(data.folders)?data.folders.slice():[],selectedId=localStorage.getItem('frameforge.lastFolderId')||'';
+  if(selectedId&&!folders.some(x=>x.id===selectedId))selectedId='';
+  const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!=null)node.textContent=text;return node};
+  const back=el('div','ff-folder-backdrop'),card=el('section','ff-folder-dialog');card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');card.setAttribute('aria-labelledby','ff-folder-title');
+  const head=el('div','ff-folder-head'),titles=el('div','ff-folder-titles'),eyebrow=el('div','ff-folder-eyebrow','FRAMEFORGE'),title=el('h2','', 'Choose publish folder');title.id='ff-folder-title';const sub=el('p','', 'Select where this frame or batch should appear in Canva.');titles.append(eyebrow,title,sub);const close=el('button','ff-folder-icon','×');close.type='button';close.setAttribute('aria-label','Cancel');head.append(titles,close);
+  const list=el('div','ff-folder-list'),createWrap=el('div','ff-folder-create'),newButton=el('button','ff-folder-new','＋ New folder'),fieldRow=el('div','ff-folder-fieldrow'),field=el('input','ff-folder-input'),add=el('button','ff-folder-add','Create');field.type='text';field.maxLength=80;field.placeholder='Folder name';field.setAttribute('aria-label','New folder name');fieldRow.append(field,add);createWrap.append(newButton,fieldRow);
+  const error=el('div','ff-folder-error');error.setAttribute('role','alert');
+  const actions=el('div','ff-folder-actions'),cancel=el('button','ff-folder-secondary','Cancel'),use=el('button','ff-folder-primary','Use folder');cancel.type=use.type='button';actions.append(cancel,use);
+  card.append(head,list,createWrap,error,actions);back.append(card);document.body.append(back);
+  const selected=()=>selectedId?(folders.find(x=>x.id===selectedId)||null):{id:'',name:'Uncategorized'};
+  const render=()=>{list.textContent='';const rows=[{id:'',name:'Uncategorized',builtin:true},...folders];for(const folder of rows){const row=el('button','ff-folder-row'+(folder.id===selectedId?' selected':''));row.type='button';row.dataset.folderId=folder.id;const icon=el('span','ff-folder-row-icon',folder.builtin?'⌂':'▰'),label=el('span','ff-folder-row-label',folder.name),check=el('span','ff-folder-check',folder.id===selectedId?'✓':'');row.append(icon,label,check);row.onclick=()=>{selectedId=folder.id;render()};list.append(row)}};
+  const finish=value=>{document.removeEventListener('keydown',onKey);back.remove();resolve(value)};
+  const onKey=e=>{if(e.key==='Escape')finish(null)};document.addEventListener('keydown',onKey);close.onclick=cancel.onclick=()=>finish(null);back.onmousedown=e=>{if(e.target===back)finish(null)};
+  use.onclick=()=>{const folder=selected();if(!folder)return;localStorage.setItem('frameforge.lastFolderId',folder.id);finish({id:folder.id,name:folder.name,data:{...data,folders}})};
+  newButton.onclick=()=>{fieldRow.classList.add('show');newButton.style.display='none';field.focus()};
+  const create=async()=>{const name=field.value.trim();if(!name)return;error.textContent='';add.disabled=true;add.textContent='Creating…';try{const response=await fetch(config.base+'/api/folders',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify({name})}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);if(!result.folder||!result.folder.id)throw new Error('Worker did not return the created folder');folders=Array.isArray(result.folders)?result.folders:[...folders,result.folder];selectedId=result.folder.id;field.value='';fieldRow.classList.remove('show');newButton.style.display='';render()}catch(e){error.textContent=String(e.message||e)}finally{add.disabled=false;add.textContent='Create'}};
+  add.onclick=create;field.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();create()}};render();setTimeout(()=>{const active=list.querySelector('.selected');if(active)active.focus();else list.querySelector('button')?.focus()},0);
+})}
+async function cloudChooseFolder(config){const data=await cloudLibraryData(config);if(data.folderSystem!==true)throw new Error('Worker v7.0 is required for folders');return cloudFolderPicker(data,config)}
 $('#btnPublishCloud').onclick = async () => {
   const all=doc.layers.filter(l=>l.visible&&l.type==='frame'),chosen=sel?layer(sel):null;
   const silhouettes=all.filter(f=>f.publishMode==='silhouette'),overlays=doc.layers.filter(l=>l.visible&&l.type==='overlay');
@@ -3117,6 +3145,6 @@ if (_embedded) {
   setTimeout(() => toast('Preview pane detected · downloads will open a Save link. Open the file in a browser tab for direct saving.'), 1600);
 }
 </script>
-<script>console.info("FrameForge Folder Library build 2026-09-17-v7.0");document.documentElement.dataset.frameforgeBuild="folder-library-v7.0";</script>
+<script>console.info("FrameForge Folder Picker build 2026-09-17-v7.3");document.documentElement.dataset.frameforgeBuild="folder-picker-v7.3";</script>
 </body>
 </html>
