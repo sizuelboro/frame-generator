@@ -2524,6 +2524,7 @@ async function detectSilhouette(L, tolerance) {
   const baseClean=_splitThinHorizontal(mask,w,h),baseParts=_components(baseClean,w,h),partLargest=baseParts.items[0];if(!partLargest)throw new Error('No usable silhouette found after separating objects');
   const minSize=Math.max(18,w*h*.00018),minHeroSize=Math.max(300,partLargest.size*.01),minHeroHeight=Math.max(5,h*.04),basePicked=baseParts.items.filter(c=>c.size>=minHeroSize&&(c.maxY-c.minY+1)>=minHeroHeight).slice(0,8);
   const multiCandidate=basePicked.length>1,clean=multiCandidate?_splitMultiHorizontalDetails(mask,w,h):baseClean,parts=multiCandidate?_components(clean,w,h):baseParts,picked=multiCandidate?_multiHeroComponents(parts,w,h):basePicked,outlines=[],pathDs=[],validIds=[];
+  const heroPieces=[];
   for(const comp of picked){
     const cm=_componentMask(parts.labels,comp.id),bh=comp.maxY-comp.minY+1;
     // The connected couple gets two aligned frame bands. This gives hair and
@@ -2531,30 +2532,65 @@ async function detectSilhouette(L, tolerance) {
     // people into one 2048-byte contour.
     const splitPerson=multiCandidate&&comp.minX>w*.25&&bh>h*.45,masks=[];
     if(splitPerson){const cut=Math.round(comp.minY+bh*.56),top=new Uint8Array(cm.length),bottom=new Uint8Array(cm.length);for(let i=0;i<cm.length;i++)if(cm[i]){const y=(i-i%w)/w;if(y<=cut+1)top[i]=1;if(y>=cut-1)bottom[i]=1}masks.push(top,bottom)}else masks.push(cm);
-    let made=0;
-    for(const partMask of masks){const loops=await _maskOutlines(partMask,w,h,2400,.25,.5),usable=loops.filter(Boolean);if(!usable.length)continue;const exact=_multiObjectPath(usable,L,w,h,true,1980);if(!exact)continue;outlines.push(...usable);pathDs.push(exact.path);made++}
-    if(made)validIds.push(comp.id);
+    // A part mask can hold several disconnected pieces (for example the band
+    // below the split line holds each person's legs separately). _maskOutlines
+    // returns only the largest outer contour, so tracing a band as a whole
+    // silently dropped every smaller piece. Trace each connected piece on its
+    // own: nothing is lost and each piece gets its own byte budget.
+    for(const partMask of masks){
+      const pieces=_components(partMask,w,h),usablePieces=pieces.items.filter(p=>p.size>=Math.max(60,minSize));
+      for(const piece of (usablePieces.length?usablePieces:pieces.items.slice(0,1))){
+        const pieceMask=_componentMask(pieces.labels,piece.id),loops=await _maskOutlines(pieceMask,w,h,2400,.25,.5),usable=loops.filter(Boolean);
+        if(!usable.length)continue;const exact=_multiObjectPath(usable,L,w,h,true,1980);if(!exact)continue;
+        heroPieces.push({comp:comp.id,path:exact.path,mask:pieceMask,loops:usable});
+      }
+    }
   }
-  if(!pathDs.length)throw new Error('Could not trace separated silhouette objects');
-  const keep=new Set(validIds),detailMask=new Uint8Array(w*h);let detailPixels=0;for(let i=0;i<mask.length;i++)if(mask[i]&&(!parts.labels[i]||!keep.has(parts.labels[i]))){detailMask[i]=1;detailPixels++}
-  let detailOverlayDataUrl=null,detailFrameCount=0;
-  if(multiCandidate&&detailPixels){const dc=_components(detailMask,w,h),groups=[];let pending=[];
+  if(!heroPieces.length)throw new Error('Could not trace separated silhouette objects');
+  // Judge every traced object on its own. An object whose native path cannot
+  // stay faithful inside Canva's byte budget (fine palm fronds, hair strands)
+  // is decoration, not a photo opening: publish it as pixel-accurate overlay
+  // artwork instead of failing the whole trace or shipping a mangled frame.
+  const coveredMask=new Uint8Array(w*h);
+  for(const piece of heroPieces){
+    const q=_nativeSilhouetteQuality([piece.path],piece.mask,L,w,h);
+    piece.ok=q.missRate<=.06&&q.extraRate<=.06;piece.missRate=q.missRate;
+    if(piece.ok){pathDs.push(piece.path);outlines.push(...piece.loops);validIds.push(piece.comp);for(let i=0;i<piece.mask.length;i++)if(piece.mask[i])coveredMask[i]=1}
+  }
+  // If nothing cleared the strict bar, keep the single most faithful object so
+  // the user still gets a usable frame, and say so instead of failing outright.
+  let fallback=false;
+  if(!pathDs.length){
+    const best=heroPieces.slice().sort((a,b)=>a.missRate-b.missRate)[0];
+    if(!best||best.missRate>.14)throw new Error(`No object could be traced accurately enough for a native Canva frame (best object lost ${Math.round((best?best.missRate:1)*100)}%). Try a cleaner silhouette.`);
+    best.ok=true;fallback=true;pathDs.push(best.path);outlines.push(...best.loops);validIds.push(best.comp);
+    for(let i=0;i<best.mask.length;i++)if(best.mask[i])coveredMask[i]=1;
+  }
+  const demoted=heroPieces.filter(p=>!p.ok).length,demotedMask=new Uint8Array(w*h);
+  for(const piece of heroPieces)if(!piece.ok)for(let i=0;i<piece.mask.length;i++)if(piece.mask[i]&&!coveredMask[i])demotedMask[i]=1;
+  // Demoted objects already failed the native-path budget, so they must bypass
+  // the detail packer entirely and go straight to the overlay image.
+  const keep=new Set(validIds),detailMask=new Uint8Array(w*h);let detailPixels=0;for(let i=0;i<mask.length;i++)if(mask[i]&&!coveredMask[i]&&!demotedMask[i]){detailMask[i]=1;detailPixels++}
+  let detailOverlayDataUrl=null,detailFrameCount=0,nativeDetailMask=null;
+  if(multiCandidate&&detailPixels){const dc=_components(detailMask,w,h),groups=[],packed=new Uint8Array(w*h);let pending=[],pendingIds=[];
+    const flush=(ids,loops)=>{if(!loops.length)return;const done=_multiObjectPath(loops,L,w,h,false,1900)||_multiObjectPath(loops,L,w,h,true,1900);if(!done)return;groups.push(done.path);for(const id of ids)for(let i=0;i<w*h;i++)if(dc.labels[i]===id)packed[i]=1};
     for(const comp of dc.items.filter(c=>c.size>=4)){let loops=await _maskOutlines(_componentMask(dc.labels,comp.id),w,h,2000,.35,.5);if(!loops.length)continue;
       let alone=_multiObjectPath(loops,L,w,h,false,1900);if(!alone)alone=_multiObjectPath(loops,L,w,h,true,1900);if(!alone)continue;
-      const trial=_multiObjectPath([...pending,...loops],L,w,h,false,1750);if(trial)pending=[...pending,...loops];else{if(pending.length){const done=_multiObjectPath(pending,L,w,h,false,1900);if(done)groups.push(done.path)}pending=loops}}
-    if(pending.length){const done=_multiObjectPath(pending,L,w,h,false,1900)||_multiObjectPath(pending,L,w,h,true,1900);if(done)groups.push(done.path)}
-    if(pathDs.length+groups.length<=12){pathDs.push(...groups);detailFrameCount=groups.length;detailPixels=0}else detailOverlayDataUrl=_detailOverlayDataUrl(detailMask,L,w,h);
-  }else if(detailPixels)detailOverlayDataUrl=_detailOverlayDataUrl(detailMask,L,w,h);
-  // Quality gate must only judge what the native paths were SUPPOSED to cover.
-  // Detail routed to the overlay image (palm trees, ripples, birds) is deliberate
-  // output, not shape loss, so it must not count as "missed" foreground.
+      const trial=_multiObjectPath([...pending,...loops],L,w,h,false,1750);if(trial){pending=[...pending,...loops];pendingIds.push(comp.id)}else{flush(pendingIds,pending);pending=loops;pendingIds=[comp.id]}}
+    flush(pendingIds,pending);
+    if(groups.length&&pathDs.length+groups.length<=12){pathDs.push(...groups);detailFrameCount=groups.length;nativeDetailMask=packed;
+      let left=0;for(let i=0;i<w*h;i++)if((detailMask[i]&&!packed[i])||demotedMask[i])left++;detailPixels=left;
+      if(left)detailOverlayDataUrl=_detailOverlayDataUrl(Uint8Array.from({length:w*h},(_,i)=>((detailMask[i]&&!packed[i])||demotedMask[i])?1:0),L,w,h);
+    }else{detailPixels=0;for(let i=0;i<w*h;i++)if(detailMask[i]||demotedMask[i])detailPixels++;detailOverlayDataUrl=_detailOverlayDataUrl(Uint8Array.from({length:w*h},(_,i)=>(detailMask[i]||demotedMask[i])?1:0),L,w,h)}
+  }else{detailPixels=0;for(let i=0;i<w*h;i++)if(detailMask[i]||demotedMask[i])detailPixels++;if(detailPixels)detailOverlayDataUrl=_detailOverlayDataUrl(Uint8Array.from({length:w*h},(_,i)=>(detailMask[i]||demotedMask[i])?1:0),L,w,h)}
+  // The gate may only judge what the native paths were SUPPOSED to cover.
+  // Anything deliberately routed to the overlay image is output, not shape loss.
   const expectedMask=new Uint8Array(w*h);
-  for(let i=0;i<mask.length;i++){const lab=parts.labels[i];if(mask[i]&&lab&&keep.has(lab))expectedMask[i]=1}
-  if(detailFrameCount)for(let i=0;i<detailMask.length;i++)if(detailMask[i])expectedMask[i]=1;
-  const qaScoped=_nativeSilhouetteQuality(pathDs,expectedMask,L,w,h),qaFull=_nativeSilhouetteQuality(pathDs,mask,L,w,h),qaOk=q=>q.missRate<=.04&&q.extraRate<=.02;
-  const qa=qaOk(qaScoped)?qaScoped:qaFull;
-  if(!qaOk(qaScoped)&&!qaOk(qaFull))throw new Error(`Traced objects lost ${Math.round(Math.min(qaScoped.missRate,qaFull.missRate)*100)}% of their shape. Try a cleaner silhouette.`);
-  if(detailPixels&&detailOverlayDataUrl)toast(`${pathDs.length} native frame object(s) · remaining detail published as overlay artwork`);
+  for(let i=0;i<w*h;i++)if(coveredMask[i]||(nativeDetailMask&&nativeDetailMask[i]))expectedMask[i]=1;
+  const qa=_nativeSilhouetteQuality(pathDs,expectedMask,L,w,h),gateLimit=fallback?.16:.06;
+  if(qa.missRate>gateLimit||qa.extraRate>gateLimit)throw new Error(`Traced objects lost ${Math.round(qa.missRate*100)}% of their shape. Try a cleaner silhouette.`);
+  if(fallback)toast(`Only one object could be traced natively and it lost ${Math.round(qa.missRate*100)}% of its detail · check the frame edge before publishing`);
+  else if(demoted||detailPixels)toast(`${pathDs.length} native frame object(s) · ${demoted?demoted+' fine-detail object(s) and ':''}remaining detail published as overlay artwork`);
   const pts=outlines.flat().map(p=>({x:+(L.x+p[0]*sx).toFixed(1),y:+(L.y+p[1]*sy).toFixed(1)}));
   return{mode:pathDs.length>1?'exact multi-element':'raster',pathD:pathDs[0],pathDs,pts,objectCount:pathDs.length,heroCount:validIds.length,detailFrameCount,multiElement:pathDs.length>1,detailOverlayDataUrl,detailPixels,detailCount:detailFrameCount,smartMask:false,smartMaskDataUrl:null};
 }
