@@ -1,0 +1,8 @@
+Netlify-ready FrameForge site with floral arch assets.
+
+Deploy the contents of this folder to the existing site fanciful-khapse-528c17.
+Expected public files:
+- /mockups/floral-arch-01.png
+- /mockups/floral-arch-01-thumb.jpg
+
+The supplied FrameForge HTML is included as index.html.
