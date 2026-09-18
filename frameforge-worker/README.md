@@ -17,7 +17,7 @@ If `frameforge-library` is already used in your account, choose another R2 bucke
 
 ## Connect FrameForge
 
-1. Deploy the included FrameForge Netlify folder.
+1. Deploy the included FrameForge folder to Cloudflare Pages (project `canvaforge`, live at https://canvaforge.pages.dev).
 2. Click **Library settings**.
 3. Paste the Worker URL and the same admin token.
 4. Build a frame, click **Fit canvas**, and choose padding.

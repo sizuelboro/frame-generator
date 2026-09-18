@@ -8,5 +8,8 @@
       "binding": "LIBRARY",
       "bucket_name": "frameforge-library"
     }
-  ]
+  ],
+  "observability": {
+    "enabled": true
+  }
 }

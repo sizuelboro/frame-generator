@@ -23,7 +23,8 @@
 
 ## Must be verified in your Canva account
 
-- The configured Netlify overlay and thumbnail URLs return public image responses.
+- The configured Cloudflare Pages overlay and thumbnail URLs (https://canvaforge.pages.dev/mockups/...) return public image responses.
+- The Cloudflare Worker library (https://frameforge-library.goutamboronew.workers.dev/api/frames) is reachable from Canva Preview and its hostname is allowed in the Developer Portal.
 - The app builds after `npm install` on a networked computer.
 - Canva Preview inserts the group in your chosen design type.
 - The locked-overlay/unlocked-frame arrangement accepts drag/drop reliably.

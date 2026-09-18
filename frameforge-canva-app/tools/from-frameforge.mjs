@@ -8,6 +8,11 @@ if (!file) {
   process.exit(1);
 }
 
+// Public HTTPS host that serves the exported overlay/thumbnail PNGs.
+// Cloudflare Pages is the live host; override with FRAMEFORGE_ASSET_BASE if needed.
+const ASSET_BASE = (process.env.FRAMEFORGE_ASSET_BASE || "https://canvaforge.pages.dev/mockups").replace(/\/+$/, "");
+if (!/^https:\/\//i.test(ASSET_BASE)) fail("FRAMEFORGE_ASSET_BASE must be a public HTTPS URL.");
+
 const doc = JSON.parse(readFileSync(file, "utf8"));
 const layers = Array.isArray(doc.layers) ? doc.layers : [];
 const frame = layers.find((layer) => layer?.type === "frame");
@@ -30,8 +35,8 @@ const entry = {
   name: String(name).trim() || "My Mockup",
   w: Math.round(width),
   h: Math.round(height),
-  overlayUrl: "https:" + "//YOUR-SITE.netlify.app/mockups/" + safeId + ".png",
-  thumbUrl: "https:" + "//YOUR-SITE.netlify.app/mockups/" + safeId + "-thumb.png",
+  overlayUrl: `${ASSET_BASE}/${safeId}.png`,
+  thumbUrl: `${ASSET_BASE}/${safeId}-thumb.png`,
   mimeType: "image/png",
   aiDisclosure: "none",
   paths: [path],
