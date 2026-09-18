@@ -204,6 +204,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
     <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
     <button class="btn" id="btnPickOpening">Pick opening</button>
     <button class="btn" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
+    <button class="btn" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
     <button class="btn" id="btnRemoveBg">Remove bg</button>
     <button class="btn" id="btnCanvaPdf">Canva frame PDF</button>
     <button class="btn" id="btnMockupPdf">Canva mockup PDF</button>
@@ -223,6 +224,10 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
           <button class="tool" data-act="addImage">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/></svg>
             Image layer
+          </button>
+          <button class="tool" data-act="addShadow">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7"/><path d="M14.5 14.5L21 21" opacity=".5"/></svg>
+            Shadow layer
           </button>
           <button class="tool" data-act="addOverlay">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 8h13v13H8z"/></svg>
@@ -572,8 +577,8 @@ function render(target, opts) {
         c.restore();
       }
       if(L.detailOverlayDataUrl){const detail=getImg(L.detailOverlayDataUrl);if(detail)c.drawImage(detail,0,0,doc.canvas.w,doc.canvas.h)}
-    } else if (L.type === 'image' || L.type === 'overlay') {
-      const img = getImg(L.src);
+    } else if (L.type === 'image' || L.type === 'overlay' || L.type === 'shadow') {
+      const img = getImg(L.type === 'shadow' ? (L.shadowSrc || L.src) : L.src);
       if (img) {
         c.save();
         c.translate(L.x + L.w / 2, L.y + L.h / 2);
@@ -859,7 +864,7 @@ function toast(msg) {
 }
 function sync() { render(); refreshLayers(); refreshProps(); }
 
-const TYPE_LABEL = { frame: 'Frame', image: 'Image', overlay: 'Overlay (locked on top)', text: 'Text', shape: 'Shape' };
+const TYPE_LABEL = { frame: 'Frame', image: 'Image', overlay: 'Overlay (locked on top)', shadow: 'Shadow (locked on top)', text: 'Text', shape: 'Shape' };
 
 function refreshLayers() {
   const box = $('#layerList');
@@ -1151,6 +1156,63 @@ function bindProps(L) {
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
 document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => actions[b.dataset.act]()));
 
+let ffShadowStrength = 0.35;
+
+/* ---------------- shadow layer (natural light on the artwork) ----------------
+   A shadow layer is pure black with a derived alpha channel. It sits above the
+   drop-target frame, so whatever the buyer drops in is tinted by it and the
+   mockup reads as real room light.
+
+   Alpha is hard-capped below the 128 "this pixel is artwork" threshold used by
+   detectOpening() and the auto-bleed alpha map, so a shadow can never be
+   mistaken for a frame border. */
+const SHADOW_MAX_ALPHA = 115;
+async function buildShadowSource(src, strength) {
+  const img = await loadImg(src);
+  const w = Math.max(1, img.naturalWidth), h = Math.max(1, img.naturalHeight);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.drawImage(img, 0, 0);
+  const im = x.getImageData(0, 0, w, h), d = im.data, n = w * h;
+  let clear = 0;
+  for (let i = 3; i < d.length; i += 4) if (d[i] < 250) clear++;
+  const useAlpha = clear > n * 0.02;            // already a transparent shadow PNG
+  let reference = 255;
+  if (!useAlpha) {
+    // Treat the brightest part of the plate as "no shadow" so a light wall does
+    // not tint the whole artwork. 95th percentile ignores specular highlights.
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < d.length; i += 4) hist[Math.min(255, Math.round(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]))]++;
+    let seen = 0; const target = n * 0.95;
+    for (let v = 0; v < 256; v++) { seen += hist[v]; if (seen >= target) { reference = Math.max(1, v); break } }
+  }
+  const cap = Math.round(SHADOW_MAX_ALPHA * Math.max(0, Math.min(1, strength / 0.45)));
+  for (let i = 0; i < d.length; i += 4) {
+    let amount;
+    if (useAlpha) amount = d[i + 3] / 255;
+    else { const lum = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; amount = Math.max(0, Math.min(1, (reference - lum) / reference)); }
+    d[i] = d[i + 1] = d[i + 2] = 0;
+    d[i + 3] = Math.min(SHADOW_MAX_ALPHA, Math.round(amount * cap));
+  }
+  x.putImageData(im, 0, 0);
+  return c.toDataURL('image/png');
+}
+function shadowLayer() {
+  const picked = doc.layers.find(L => L.id === sel && L.type === 'shadow');
+  if (picked) return picked;
+  const all = doc.layers.filter(L => L.type === 'shadow');
+  return all[all.length - 1] || null;
+}
+async function restyleShadowLayer(L, strength) {
+  L.strength = Math.max(0.02, Math.min(0.45, strength));
+  L.shadowSrc = await buildShadowSource(L.src, L.strength);
+  contentCache.clear(); sync(); updateShadowButton();
+}
+function updateShadowButton() {
+  const button = $('#btnShadowStrength');
+  if (button) button.textContent = `Shadow: ${Math.round(ffShadowStrength * 100)}%`;
+}
+
 const actions = {
   async addImage() {
     const f = await pickFile(); if (!f) return;
@@ -1158,6 +1220,20 @@ const actions = {
     const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h, 1);
     addLayerTop({ id: uid(), type: 'image', name: f.name.replace(/\.[^.]+$/, '') || 'Image', visible: true, locked: false, opacity: 1,
       src: f.src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
+  },
+  async addShadow() {
+    const f = await pickFile(); if (!f) return;
+    const raw = await uiPrompt('Shadow strength', String(Math.round(ffShadowStrength * 100)), 'Percent of light the shadow removes (5-45). Dark areas of the image become shadow; the brightest area stays clear.');
+    if (raw == null) return;
+    const strength = Math.max(0.02, Math.min(0.45, (parseFloat(raw) || 35) / 100));
+    ffShadowStrength = strength;
+    const m = await loadMeta(f.src);
+    const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
+    const shadowSrc = await buildShadowSource(f.src, strength);
+    addLayerTop({ id: uid(), type: 'shadow', name: f.name.replace(/\.[^.]+$/, '') || 'Shadow', visible: true, locked: true, opacity: 1,
+      src: f.src, shadowSrc, strength, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
+    updateShadowButton();
+    toast(`Shadow layer added at ${Math.round(strength * 100)}% and locked on top`);
   },
   async addOverlay() {
     const f = await pickFile(); if (!f) return;
@@ -1344,11 +1420,24 @@ function openingWithBleed(points, bleed = ffOpeningBleed, alphaMap = null) {
   return out;
 }
 
+if ($('#btnShadowStrength')) $('#btnShadowStrength').onclick = async () => {
+  const L = shadowLayer();
+  if (!L) { toast('Add a shadow layer first (Add · Shadow layer)'); return; }
+  const raw = await uiPrompt('Shadow strength', String(Math.round((L.strength || ffShadowStrength) * 100)), 'Percent of light the shadow removes (5-45). Higher looks stronger; the cap keeps the opening detectable.');
+  if (raw == null) return;
+  const value = parseFloat(raw);
+  if (!Number.isFinite(value)) { toast('Enter a number from 5 to 45'); return; }
+  ffShadowStrength = Math.max(0.02, Math.min(0.45, value / 100));
+  await restyleShadowLayer(L, ffShadowStrength);
+  toast(`Shadow rebuilt at ${Math.round(ffShadowStrength * 100)}%`);
+};
+
 function updateOpeningBleedButton() {
   const button = $('#btnOpeningBleed');
   if (button) button.textContent = `Auto bleed: ${ffOpeningBleed}px`;
 }
 updateOpeningBleedButton();
+updateShadowButton();
 if ($('#btnOpeningBleed')) $('#btnOpeningBleed').onclick = () => {
   const raw = prompt('Maximum auto-safe bleed in pixels (0–20). FrameForge checks overlay opacity and reduces it automatically for thin borders.', String(ffOpeningBleed));
   if (raw == null) return;
@@ -1462,7 +1551,7 @@ $('#btnPublishCloud').onclick = async () => {
   const overBudget=multiElement?byteSizes.some(b=>b>1980):bytes>1980,maxPaths=multiElement?12:29;
   if(!smartMask&&(paths.length>maxPaths||overBudget)){toast(multiElement?`Native Canva path budget exceeded: largest object is ${Math.max(...byteSizes)}/1980 safe bytes across ${paths.length}/${maxPaths} objects · simplify the artwork`:`Native Canva path budget exceeded: ${bytes}/1980 safe bytes · simplify the artwork`);return}
   const button=$('#btnPublishCloud'),text=button.textContent;button.disabled=true;button.textContent='Publishing…';
-  try{const off=silhouetteMode?silhouetteThumbnail(frames):exportCanvas({scale:2,only:['overlay'],bg:false});const blank=silhouetteMode?silhouetteTransparentOverlay():null,overlayImageData=silhouetteMode?(frames[0].detailOverlayDataUrl||(blank&&blank.toDataURL('image/png'))):undefined;const response=await fetch(config.base+'/api/frames',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify({mode:smartMask?'smart-mask':(silhouetteMode?'silhouette':'overlay'),name:name.trim(),folderId:folder.id,w:doc.canvas.w,h:doc.canvas.h,assetWidth:silhouetteMode?doc.canvas.w:off.width,assetHeight:silhouetteMode?doc.canvas.h:off.height,paths:smartMask?[]:paths,multiElement:smartMask?false:multiElement,smartMask,maskImageData:smartMask?frames[0].smartMaskDataUrl:undefined,imageData:off.toDataURL('image/png'),overlayImageData})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);toast(`${name.trim()} published to ${folder.name} as ${silhouetteMode?(multiElement?('exact multi-element silhouette · '+paths.length+' aligned frames'):(frames[0].detailOverlayDataUrl?'smart silhouette + detail overlay':'one silhouette drop target')):'overlay frame'} · ${result.count} frame(s) in library`)}catch(e){toast('Publish failed: '+String(e.message||e))}finally{button.disabled=false;button.textContent=text}
+  try{const off=silhouetteMode?silhouetteThumbnail(frames):exportCanvas({scale:2,only:['overlay','shadow'],bg:false});const blank=silhouetteMode?silhouetteTransparentOverlay():null,overlayImageData=silhouetteMode?(frames[0].detailOverlayDataUrl||(blank&&blank.toDataURL('image/png'))):undefined;const response=await fetch(config.base+'/api/frames',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify({mode:smartMask?'smart-mask':(silhouetteMode?'silhouette':'overlay'),name:name.trim(),folderId:folder.id,w:doc.canvas.w,h:doc.canvas.h,assetWidth:silhouetteMode?doc.canvas.w:off.width,assetHeight:silhouetteMode?doc.canvas.h:off.height,paths:smartMask?[]:paths,multiElement:smartMask?false:multiElement,smartMask,maskImageData:smartMask?frames[0].smartMaskDataUrl:undefined,imageData:off.toDataURL('image/png'),overlayImageData})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);toast(`${name.trim()} published to ${folder.name} as ${silhouetteMode?(multiElement?('exact multi-element silhouette · '+paths.length+' aligned frames'):(frames[0].detailOverlayDataUrl?'smart silhouette + detail overlay':'one silhouette drop target')):'overlay frame'} · ${result.count} frame(s) in library`)}catch(e){toast('Publish failed: '+String(e.message||e))}finally{button.disabled=false;button.textContent=text}
 };
 
 
@@ -1486,7 +1575,7 @@ $('#btnExport').onclick = () => {
   toast('Exported at 2× — mockup.png');
 };
 $('#btnExportOverlay').onclick = () => {
-  const off = exportCanvas({ scale: 2, only: ['overlay'], bg: false });
+  const off = exportCanvas({ scale: 2, only: ['overlay','shadow'], bg: false });
   off.toBlob(b => download(b, 'overlay-transparent.png'), 'image/png');
   const alphaMap = makeOverlayAlphaMap(off);
   const frames = doc.layers.filter(l => l.type === 'frame')
@@ -3089,7 +3178,7 @@ async function mockupPdf() {
   if (!art.length) throw new Error('no overlay');
 
   // mockup artwork only, transparent background, at canvas resolution
-  const off = exportCanvas({ scale: 2, only: ['overlay'], bg: false });
+  const off = exportCanvas({ scale: 2, only: ['overlay','shadow'], bg: false });
   const c = off.getContext('2d');
   const iw = off.width, ih = off.height;
   const d = c.getImageData(0, 0, iw, ih).data;
