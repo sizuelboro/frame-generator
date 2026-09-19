@@ -2844,7 +2844,8 @@ async function autoHoleApply(L) {
 
      1. "Export for AI"    frame -> flat green-keyed PNG + prompt + sidecar
      2. (user runs it through ChatGPT / any image model)
-     3. "Import AI scene"  scene -> green knocked out, opening retraced,
+     3. "Import AI scene"  scene -> key knocked out, openings retraced,
+                                    environmental shadow harvested,
                                     fresh scene document
 
    The opening is handed to the model as flat pure green instead of
@@ -2852,31 +2853,93 @@ async function autoHoleApply(L) {
    content but leave a large flat block alone. Green is used rather than
    magenta so it never collides with the warm reds and creams that are
    common in frame artwork.
+
+   Shadow IS allowed to fall across the key region. A shadow is
+   multiplicative, so shadowed key green keeps r and b near zero and only
+   loses brightness - which means the key can be found by hue while the
+   brightness drop inside it doubles as a shadow map. That shadow is
+   turned into a normal shadow layer, so whatever the buyer drops in gets
+   the same window light as the frame around it.
    ===================================================================== */
 const FF_SCENE_SIDECAR_KEY = 'frameforge.scene.handoff.v1';
 const FF_SCENE_KEY_HEX = '#00FF00';
 
-const FF_SCENE_PROMPT = `Turn the attached picture frame into a realistic product mockup photograph.
+const FF_SCENE_PROMPT = `You are producing a commercial picture-frame mockup. The attached image
+is a finished frame asset. Your job is ONLY to place it into a realistic
+photographic environment. You are NOT redesigning it.
 
-Place the frame naturally in a real environment - hang it on a textured
-wall, or stand it on a wooden shelf, sideboard or table. Add convincing
-environmental light and shadow: soft directional window light, the cast
-shadow of window panes or venetian blinds falling across the scene,
-dappled shadows from leaves or a nearby houseplant, gentle ambient
-occlusion where the frame meets the surface, and a natural contact
-shadow under or behind the frame.
+The large solid green area is a reserved placeholder. A customer photo
+will be inserted into it later by software that finds it by colour. If
+that green is damaged, recoloured or covered, the asset is destroyed and
+the output is worthless.
 
-STRICT RULES - the mockup is unusable if these are broken:
-1. The solid green region must remain EXACTLY as it is: flat, pure green
-   (#00FF00), fully opaque, completely unshaded. Do not draw, paint,
-   blur, tint, texture, shade or place ANY object inside the green.
-   Environmental shadows must NOT fall across the green region.
-2. Do not redraw, restyle, smooth or reinterpret the frame's border
-   artwork. Keep its silhouette, colours and fine detail identical.
-3. Keep the whole frame visible and unobstructed. Do not crop it, tilt
-   it, or hide any edge behind another object.
-4. Keep the frame's aspect ratio unchanged. Do not stretch or squash it.
-5. Output one single image, no text, no watermark, no added border.`;
+== WHAT TO ADD ==
+Put the frame in a believable real setting: hung on a textured painted
+wall, or standing on a wooden shelf, sideboard, mantelpiece or table.
+Light it with soft directional daylight coming from one side, as if from
+a window just out of frame. Add, in the same light direction:
+  - the cast shadow of window panes, mullions or venetian blinds falling
+    across the wall, the frame AND the green area
+  - dappled shadows from leaves or a nearby houseplant
+  - ambient occlusion where the frame meets the surface behind it
+  - a soft contact shadow under or behind the frame
+Keep the result photographic: real surface texture, natural colour,
+shallow depth of field is fine.
+
+== ABSOLUTE RULES ==
+These are not preferences. Breaking any one of them makes the image
+unusable, so re-check each before you output.
+
+R1. NOTHING inside the green area. No photo, no picture, no artwork, no
+    person, no landscape, no texture, no pattern, no gradient, no noise,
+    no reflection, no glass glare, no highlight, no vignette, no logo,
+    no text. It stays an empty flat block of colour. Do not "helpfully"
+    fill it. Do not treat it as a canvas.
+
+R2. The green area keeps EXACTLY the shape, size, position and corner
+    geometry it has in the attached image, relative to the frame. Do not
+    shrink it, grow it, round its corners, soften its edges, feather it,
+    blur it or move it. Its boundary against the frame must stay crisp.
+
+R3. Shadows MUST continue across the green area rather than stopping at
+    the frame's inner edge - but inside shadow the green must stay GREEN
+    and only get DARKER. Darker green is correct and expected. Grey,
+    grey-green, olive, brown, black, blue-green, teal or desaturated
+    green is WRONG. Never add warm or cool colour tints to it. The
+    green's red and blue channels must remain near zero everywhere.
+
+R4. Do not redraw, restyle, smooth, sharpen, simplify, embellish or
+    reinterpret the frame's border artwork. Reproduce its exact
+    silhouette, its scallops or carvings, its colours, its material and
+    its fine detail pixel-for-pixel as far as possible. Do not change
+    its thickness. Do not add or remove ornament. If you are unsure,
+    copy rather than improve.
+
+R5. Keep the ENTIRE frame visible and unobstructed. Do not crop any
+    edge. Do not let a plant, leaf, vase, book, hand or any other object
+    pass in front of the frame or overlap it. Objects may sit beside or
+    behind it only. Shadows falling on it are fine; solid objects are
+    not.
+
+R6. Keep the frame's aspect ratio exactly. Do not stretch, squash, skew,
+    rotate, tilt or apply perspective to it. Show it flat and square-on
+    to the camera.
+
+R7. Output exactly one image. No collage, no variants side by side, no
+    frame-within-a-frame, no added border, no text, no caption, no
+    watermark, no signature.
+
+== SELF-CHECK BEFORE YOU ANSWER ==
+Confirm all of these are true:
+  1. Is the green area still completely empty?
+  2. Is every green pixel still clearly green, even in deep shadow?
+  3. Is the green area the same shape and proportion as the original?
+  4. Is the border artwork unchanged?
+  5. Is the whole frame visible, uncropped, square-on and unstretched?
+  6. Do the shadows cross the green area instead of stopping at it?
+If any answer is no, fix it and re-render before replying. If you cannot
+satisfy all seven rules, say so in text instead of returning a broken
+image.`;
 
 function _ffPolyArea(pts) {
   let a = 0;
@@ -2923,8 +2986,10 @@ if ($('#btnSceneExport')) {
     const areaRatio = openingArea / Math.max(1, doc.canvas.w * doc.canvas.h);
 
     const sidecar = {
-      version: 1,
+      version: 2,
       keyColour: FF_SCENE_KEY_HEX,
+      keyDetection: 'hue',
+      shadowOverKeyAllowed: true,
       exportScale: scale,
       sourceCanvas: { w: doc.canvas.w, h: doc.canvas.h },
       sourceAspect: +(doc.canvas.w / doc.canvas.h).toFixed(4),
@@ -2949,9 +3014,18 @@ if ($('#btnSceneExport')) {
   };
 }
 
-/* Knock the key colour out of an AI scene and trace what is left as the
-   opening. Targeted at pure green rather than autoScreen()'s dominant
-   colour, because in a finished scene the wall is the dominant colour. */
+/* Hue test that survives shadow. A shadowed key green keeps r and b near
+   zero and only loses brightness, so test the channel ratio instead of the
+   distance to pure #00FF00. Natural foliage carries a real red component
+   and is rejected. Tolerance widens the allowed red/blue contamination and
+   lowers the brightness floor, so a higher number keeps deeper shadow. */
+function _ffIsKeyGreen(r, g, b, tol) {
+  const t = Math.max(10, Math.min(200, tol)) / 200;
+  const slack = 0.25 + t * 0.45;              // 0.27 .. 0.70
+  const floor = 46 - Math.round(t * 30);      // 45 .. 16
+  return g >= floor && r < g * slack && b < g * slack;
+}
+
 async function sceneKeyOut(L, tol) {
   const img = await loadImg(L.src);
   const w = img.naturalWidth, h = img.naturalHeight;
@@ -2962,44 +3036,80 @@ async function sceneKeyOut(L, tol) {
   ctx.drawImage(img, 0, 0);
   const im = ctx.getImageData(0, 0, w, h), d = im.data;
 
-  const hard = tol * tol * 3, soft = hard * 3.2;
   const mask = new Uint8Array(w * h);
+  const greenVal = new Uint8Array(w * h);
   let cleared = 0;
   for (let p = 0, i = 0; p < w * h; p++, i += 4) {
     if (d[i + 3] < 8) continue;
-    const dr = d[i], dg = d[i + 1] - 255, db = d[i + 2];
-    const dist = dr * dr + dg * dg + db * db;
-    if (dist > soft) continue;
-    if (dist > hard) { d[i + 3] = Math.round(d[i + 3] * ((dist - hard) / (soft - hard))); continue; }
-    d[i + 3] = 0; mask[p] = 1; cleared++;
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    if (!_ffIsKeyGreen(r, g, b, tol)) continue;
+    mask[p] = 1; greenVal[p] = g; cleared++;
   }
   if (cleared < w * h * 0.004) return null;
+
+  /* --- shadow harvest ---
+     Brightest key pixels are the unshaded reference, matching the 95th
+     percentile logic buildShadowSource() already uses. The plate is a
+     greyscale image (white = no shadow) so the existing Shadow: N% button
+     can restyle it later with no special cases. */
+  const hist = new Uint32Array(256);
+  for (let p = 0; p < w * h; p++) if (mask[p]) hist[greenVal[p]]++;
+  let seen = 0, reference = 255;
+  const hi = cleared * 0.95;
+  for (let v = 0; v < 256; v++) { seen += hist[v]; if (seen >= hi) { reference = Math.max(1, v); break } }
+  let seenLo = 0, floorVal = reference;
+  const lo = cleared * 0.05;
+  for (let v = 0; v < 256; v++) { seenLo += hist[v]; if (seenLo >= lo) { floorVal = v; break } }
+  const shadowDepth = Math.max(0, Math.min(1, (reference - floorVal) / reference));
+
+  let shadowPlate = null;
+  if (shadowDepth >= 0.08) {
+    const sp = document.createElement('canvas');
+    sp.width = w; sp.height = h;
+    const spc = sp.getContext('2d');
+    const spi = spc.createImageData(w, h), sd = spi.data;
+    for (let p = 0, i = 0; p < w * h; p++, i += 4) {
+      const v = mask[p] ? Math.max(0, Math.min(255, Math.round(255 * greenVal[p] / reference))) : 255;
+      sd[i] = sd[i + 1] = sd[i + 2] = v; sd[i + 3] = 255;
+    }
+    spc.putImageData(spi, 0, 0);
+    shadowPlate = sp.toDataURL('image/png');
+  }
+
+  /* knock the key out of the scene */
+  for (let p = 0, i = 0; p < w * h; p++, i += 4) if (mask[p]) d[i + 3] = 0;
   ctx.putImageData(im, 0, 0);
 
-  let minX = w, minY = h, maxX = -1, maxY = -1;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (!mask[y * w + x]) continue;
-    if (x < minX) minX = x; if (x > maxX) maxX = x;
-    if (y < minY) minY = y; if (y > maxY) maxY = y;
-  }
-  const boxArea = (maxX - minX + 1) * (maxY - minY + 1);
-  const rectangularity = boxArea > 0 ? cleared / boxArea : 0;
-
-  let raw;
-  if (rectangularity >= 0.82) {
-    raw = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]];
-  } else {
-    raw = await _maskOutline(mask, w, h, 60);
-    if (!raw || raw.length < 3) return null;
-  }
-
+  /* every separate key region becomes its own opening, so an occluded or
+     duplicated frame does not silently lose part of its drop target */
+  const cc = _components(mask, w, h);
+  const minRegion = Math.max(64, w * h * 0.002);
   const sx = L.w / w, sy = L.h / h;
+  const openings = [];
+  let skipped = 0;
+  for (const comp of cc.items) {
+    if (comp.size < minRegion) { skipped++; continue }
+    if (openings.length >= 12) { skipped++; continue }
+    const boxArea = (comp.maxX - comp.minX + 1) * (comp.maxY - comp.minY + 1);
+    const rectangularity = boxArea > 0 ? comp.size / boxArea : 0;
+    let raw;
+    if (rectangularity >= 0.82) {
+      raw = [[comp.minX, comp.minY], [comp.maxX, comp.minY], [comp.maxX, comp.maxY], [comp.minX, comp.maxY]];
+    } else {
+      raw = await _maskOutline(_componentMask(cc.labels, comp.id), w, h, 60);
+      if (!raw || raw.length < 3) { skipped++; continue }
+    }
+    openings.push({
+      pts: raw.map(p => ({ x: +(L.x + p[0] * sx).toFixed(1), y: +(L.y + p[1] * sy).toFixed(1) })),
+      rectangular: rectangularity >= 0.82
+    });
+  }
+  if (!openings.length) return null;
+
   return {
     src: c.toDataURL('image/png'),
-    pts: raw.map(p => ({ x: +(L.x + p[0] * sx).toFixed(1), y: +(L.y + p[1] * sy).toFixed(1) })),
-    cleared,
-    coverage: cleared / (w * h),
-    rectangular: rectangularity >= 0.82
+    openings, shadowPlate, shadowDepth, cleared, skipped,
+    coverage: cleared / (w * h)
   };
 }
 
@@ -3013,17 +3123,38 @@ async function sceneKeyApply(L, tol) {
   L.sceneSource = true;
   if (!/scene/i.test(L.name || '')) L.name = (L.name || 'AI') + ' Scene';
 
-  const fr = {
-    id: uid(), type: 'frame', name: 'Opening Frame',
-    frameType: res.pts.length === 4 ? (isAxisRect(res.pts) ? 'rect' : 'perspective') : 'polygon',
+  const multi = res.openings.length > 1;
+  const frames = res.openings.map((o, i) => ({
+    id: uid(), type: 'frame',
+    name: multi ? 'Opening Frame ' + (i + 1) : 'Opening Frame',
+    frameType: o.pts.length === 4 ? (isAxisRect(o.pts) ? 'rect' : 'perspective') : 'polygon',
     visible: true, locked: false, opacity: 1,
-    points: res.pts, content: null
-  };
+    points: o.pts, content: null
+  }));
 
   doc.layers = doc.layers.filter(x => x.id !== L.id);
-  doc.layers.push(fr);   // frame below
-  doc.layers.push(L);    // scene on top
-  sel = fr.id;
+  frames.forEach(f => doc.layers.push(f));  // frames below
+  doc.layers.push(L);                       // scene above them
+
+  /* the harvested shadow becomes a normal shadow layer, so the buyer's
+     artwork picks up the same window light as the frame */
+  res.shadowLayerAdded = false;
+  if (res.shadowPlate) {
+    try {
+      const strength = Math.max(0.02, Math.min(0.45, ffShadowStrength));
+      const shadowSrc = await buildShadowSource(res.shadowPlate, strength);
+      doc.layers.push({
+        id: uid(), type: 'shadow', name: 'Scene Shadow', sceneSource: true,
+        visible: true, locked: true, opacity: 1,
+        src: res.shadowPlate, shadowSrc, strength,
+        x: L.x, y: L.y, w: L.w, h: L.h, rotation: 0
+      });
+      res.shadowLayerAdded = true;
+      updateShadowButton();
+    } catch (e) { res.shadowLayerAdded = false }
+  }
+
+  sel = frames[0].id;
   contentCache.clear();
   sync();
   return res;
@@ -3037,13 +3168,13 @@ if ($('#btnSceneImport')) {
     if (!m.w || !m.h) { toast('Could not read that image'); return; }
 
     const raw = await uiPrompt('Green key tolerance', '90',
-      'How close a pixel must be to pure green to be knocked out. Try 90. Raise it if a green rim survives; lower it if parts of the scene disappear.');
+      'How far from pure green a pixel may drift and still count as the opening. Try 90. Raise it if shadow on the green was not picked up; lower it if green parts of the scene are being eaten.');
     if (raw == null) return;
     const parsed = parseInt(raw, 10);
     const tol = Math.max(10, Math.min(200, isFinite(parsed) ? parsed : 90));
 
     let sidecar = null;
-    try { sidecar = JSON.parse(localStorage.getItem(FF_SCENE_SIDECAR_KEY) || 'null'); } catch (e) { sidecar = null; }
+    try { sidecar = JSON.parse(localStorage.getItem(FF_SCENE_SIDECAR_KEY) || 'null'); } catch (e) { sidecar = null }
 
     // a scene always becomes its own document, so the original frame design survives
     const L = {
@@ -3057,7 +3188,7 @@ if ($('#btnSceneImport')) {
 
     toast('Looking for the green opening\u2026');
     let res = null;
-    try { res = await sceneKeyApply(L, tol); } catch (e) { res = null; }
+    try { res = await sceneKeyApply(L, tol); } catch (e) { res = null }
 
     if (!res) {
       toast('No green opening found - use Pick opening to click inside it, or re-import with a higher tolerance');
@@ -3076,9 +3207,17 @@ if ($('#btnSceneImport')) {
         notes.push('scene aspect ratio differs from the export - check the frame is not stretched');
       }
     }
+    if (sidecar && sidecar.openingCount && res.openings.length > sidecar.openingCount) {
+      notes.push('found ' + res.openings.length + ' openings but exported ' + sidecar.openingCount + ' - the frame may be occluded or duplicated');
+    }
 
-    toast('Scene imported \u00b7 ' + (res.rectangular ? 'rect' : res.pts.length + '-point') + ' opening rebuilt \u00b7 drop an image in'
-      + (notes.length ? ' \u00b7 WARNING: ' + notes.join('; ') : ''));
+    const parts = [res.openings.length + (res.openings.length === 1 ? ' opening' : ' openings') + ' rebuilt'];
+    parts.push(res.shadowLayerAdded
+      ? 'shadow harvested at ' + Math.round(res.shadowDepth * 100) + '% depth'
+      : 'no shadow found on the green');
+    parts.push('drop an image in');
+
+    toast('Scene imported \u00b7 ' + parts.join(' \u00b7 ') + (notes.length ? ' \u00b7 WARNING: ' + notes.join('; ') : ''));
   };
 }
 
