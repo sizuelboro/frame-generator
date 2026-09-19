@@ -1,11 +1,5 @@
 # FrameForge Cloudflare Library
 
-> Part of the FrameForge monorepo. Version history is in
-> [`CHANGELOG.md`](../CHANGELOG.md); architecture, deployment, the cloud
-> library and the buyer checklist are in [`docs/`](../docs/).
-> Canva path budgets come from `shared/frameforge-limits.js` — never
-> hardcode them.
-
 A private creator-side API that stores FrameForge overlays and frame manifests in Cloudflare R2. The Canva app reads the public library; publish/delete operations require an admin token.
 
 ## One-time Cloudflare setup
