@@ -210,7 +210,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
     <button class="btn" id="btnMockupPdf">Canva mockup PDF</button>
     <button class="btn" id="btnBundleAdd">+ Bundle</button>
     <button class="btn" id="btnBundleExport">Bundle PDF</button>
-    <button class="btn" id="btnSceneExport" title="Export this frame as a flat green-keyed PNG plus the ChatGPT prompt">Export for AI</button>
+    <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt">Export for AI</button>
     <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
     <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
     <button class="btn primary" id="btnExport">Export PNG</button>
@@ -1169,7 +1169,13 @@ let ffShadowStrength = 0.35;
    detectOpening() and the auto-bleed alpha map, so a shadow can never be
    mistaken for a frame border. */
 const SHADOW_MAX_ALPHA = 115;
-async function buildShadowSource(src, strength) {
+/* A shadow harvested from an AI scene is a measurement of real light, not a
+   decorative drop shadow, so flattening it to 115 throws away most of the
+   depth the model actually rendered. The opening is already known by then,
+   so the "never look like a border" ceiling does not apply and it gets its
+   own, much higher cap. */
+const SHADOW_SCENE_MAX_ALPHA = 230;
+async function buildShadowSource(src, strength, maxAlpha) {
   const img = await loadImg(src);
   const w = Math.max(1, img.naturalWidth), h = Math.max(1, img.naturalHeight);
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1188,13 +1194,14 @@ async function buildShadowSource(src, strength) {
     let seen = 0; const target = n * 0.95;
     for (let v = 0; v < 256; v++) { seen += hist[v]; if (seen >= target) { reference = Math.max(1, v); break } }
   }
-  const cap = Math.round(SHADOW_MAX_ALPHA * Math.max(0, Math.min(1, strength / 0.45)));
+  const lid = Math.max(1, Math.min(255, maxAlpha || SHADOW_MAX_ALPHA));
+  const cap = Math.round(lid * Math.max(0, Math.min(1, strength / 0.45)));
   for (let i = 0; i < d.length; i += 4) {
     let amount;
     if (useAlpha) amount = d[i + 3] / 255;
     else { const lum = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; amount = Math.max(0, Math.min(1, (reference - lum) / reference)); }
     d[i] = d[i + 1] = d[i + 2] = 0;
-    d[i + 3] = Math.min(SHADOW_MAX_ALPHA, Math.round(amount * cap));
+    d[i + 3] = Math.min(lid, Math.round(amount * cap));
   }
   x.putImageData(im, 0, 0);
   return c.toDataURL('image/png');
@@ -1207,7 +1214,7 @@ function shadowLayer() {
 }
 async function restyleShadowLayer(L, strength) {
   L.strength = Math.max(0.02, Math.min(0.45, strength));
-  L.shadowSrc = await buildShadowSource(L.src, L.strength);
+  L.shadowSrc = await buildShadowSource(L.src, L.strength, L.maxAlpha);
   contentCache.clear(); sync(); updateShadowButton();
 }
 function updateShadowButton() {
@@ -2842,7 +2849,7 @@ async function autoHoleApply(L) {
    Kept deliberately separate from the overlay track. Nothing here
    changes how overlays, silhouettes, auto-bleed or shadow layers work.
 
-     1. "Export for AI"    frame -> flat green-keyed PNG + prompt + sidecar
+     1. "Export for AI"    frame -> one ZIP: keyed PNG + prompt + sidecar
      2. (user runs it through ChatGPT / any image model)
      3. "Import AI scene"  scene -> key knocked out, openings retraced,
                                     environmental shadow harvested,
@@ -2947,6 +2954,70 @@ function _ffPolyArea(pts) {
   return Math.abs(a) / 2;
 }
 
+/* ---------------------------------------------------------------------
+   Minimal store-only ZIP writer.
+   A browser download cannot create a folder, so the hand-off files are
+   bundled into one archive that unpacks into a single named folder.
+   PNG bytes are already compressed, so skipping DEFLATE costs almost
+   nothing and keeps this dependency-free.
+   --------------------------------------------------------------------- */
+function _ffCrc32(buf) {
+  let t = _ffCrc32.table;
+  if (!t) {
+    t = _ffCrc32.table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[i] = c >>> 0;
+    }
+  }
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) c = t[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function _ffZip(files) {
+  const enc = new TextEncoder();
+  const u16 = n => [n & 255, (n >>> 8) & 255];
+  const u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
+  const body = [], central = [];
+  let offset = 0, centralSize = 0;
+
+  files.forEach(f => {
+    const name = enc.encode(f.name);
+    const data = f.data;
+    const crc = _ffCrc32(data);
+    const local = new Uint8Array([
+      0x50, 0x4b, 0x03, 0x04, ...u16(20), ...u16(0), ...u16(0),
+      ...u16(dosTime), ...u16(dosDate),
+      ...u32(crc), ...u32(data.length), ...u32(data.length),
+      ...u16(name.length), ...u16(0)
+    ]);
+    body.push(local, name, data);
+    const cd = new Uint8Array([
+      0x50, 0x4b, 0x01, 0x02, ...u16(20), ...u16(20), ...u16(0), ...u16(0),
+      ...u16(dosTime), ...u16(dosDate),
+      ...u32(crc), ...u32(data.length), ...u32(data.length),
+      ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0),
+      ...u32(offset)
+    ]);
+    central.push(cd, name);
+    centralSize += cd.length + name.length;
+    offset += local.length + name.length + data.length;
+  });
+
+  const end = new Uint8Array([
+    0x50, 0x4b, 0x05, 0x06, ...u16(0), ...u16(0),
+    ...u16(files.length), ...u16(files.length),
+    ...u32(centralSize), ...u32(offset), ...u16(0)
+  ]);
+  return new Blob([...body, ...central, end], { type: 'application/zip' });
+}
+
 /* Flatten the current design into the hand-off plate: white ground, every
    frame opening filled with the key colour, artwork painted on top so the
    border covers the key colour's edge. */
@@ -2971,6 +3042,10 @@ function sceneBuildKeyedPlate(frames, scale) {
   k.restore();
   k.drawImage(art, 0, 0);
   return plate;
+}
+
+function _ffSceneSlug(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 }
 
 if ($('#btnSceneExport')) {
@@ -3003,14 +3078,56 @@ if ($('#btnSceneExport')) {
     };
     try { localStorage.setItem(FF_SCENE_SIDECAR_KEY, JSON.stringify(sidecar)); } catch (e) { /* quota - validation just gets skipped */ }
 
-    plate.toBlob(b => download(b, 'frameforge-for-ai.png'), 'image/png');
-    download(new Blob([JSON.stringify(sidecar, null, 2)], { type: 'application/json' }), 'frameforge-for-ai.json');
+    const overlayName = (art.find(l => l.type === 'overlay') || {}).name || 'frame';
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const slug = _ffSceneSlug(overlayName) || 'frame';
+    const folder = 'frameforge-for-ai-' + slug + '-' + stamp;
+
+    const readme = [
+      'FrameForge - AI scene hand-off',
+      '',
+      'Files in this folder',
+      '  frame-keyed.png     give this to the image model',
+      '  chatgpt-prompt.txt  paste this as the message',
+      '  handoff.json        read back by "Import AI scene" for validation',
+      '',
+      'Steps',
+      '  1. Open ChatGPT (or any image model).',
+      '  2. Attach frame-keyed.png and paste the contents of',
+      '     chatgpt-prompt.txt as the message.',
+      '  3. Download the scene it returns.',
+      '  4. Back in FrameForge, click "Import AI scene" and pick that file.',
+      '     Start with a green key tolerance of 90.',
+      '',
+      'Notes',
+      '  The solid green block is the photo opening. Shadows may fall across',
+      '  it, but it must stay green and must stay empty.',
+      '  Import in the same browser you exported from, otherwise the sidecar',
+      '  validation warnings are skipped.',
+      '',
+      'Source canvas   ' + doc.canvas.w + ' x ' + doc.canvas.h,
+      'Export scale    ' + scale + 'x  (' + plate.width + ' x ' + plate.height + ')',
+      'Openings        ' + frames.length,
+      'Opening area    ' + Math.round(areaRatio * 100) + '% of the canvas',
+      'Exported        ' + sidecar.exportedAt,
+      ''
+    ].join('\n');
+
+    const pngBlob = await new Promise(res => plate.toBlob(res, 'image/png'));
+    const enc = new TextEncoder();
+    const zip = _ffZip([
+      { name: folder + '/frame-keyed.png', data: new Uint8Array(await pngBlob.arrayBuffer()) },
+      { name: folder + '/chatgpt-prompt.txt', data: enc.encode(FF_SCENE_PROMPT) },
+      { name: folder + '/handoff.json', data: enc.encode(JSON.stringify(sidecar, null, 2)) },
+      { name: folder + '/README.txt', data: enc.encode(readme) }
+    ]);
+    download(zip, folder + '.zip');
 
     let copied = false;
     try { await navigator.clipboard.writeText(FF_SCENE_PROMPT); copied = true; } catch (e) { copied = false; }
-    if (!copied) download(new Blob([FF_SCENE_PROMPT], { type: 'text/plain' }), 'frameforge-ai-prompt.txt');
 
-    toast('Keyed PNG exported' + (copied ? ' - prompt copied to clipboard' : ' - prompt saved as a .txt') + ' - opening is ' + Math.round(areaRatio * 100) + '% of the canvas');
+    toast('Hand-off ZIP exported (4 files)' + (copied ? ' - prompt also copied to clipboard' : ' - prompt is inside the ZIP') +
+      ' - opening is ' + Math.round(areaRatio * 100) + '% of the canvas');
   };
 }
 
@@ -3024,6 +3141,34 @@ function _ffIsKeyGreen(r, g, b, tol) {
   const slack = 0.25 + t * 0.45;              // 0.27 .. 0.70
   const floor = 46 - Math.round(t * 30);      // 45 .. 16
   return g >= floor && r < g * slack && b < g * slack;
+}
+
+/* The model renders a soft, anti-aliased edge where the key meets the
+   frame. Those blend pixels are too contaminated to pass the hue test but
+   still read as a thin green fringe once the key is gone. Grow the kill
+   mask a couple of pixels into any neighbour that is still clearly
+   green-dominant. Only the kill mask grows - the core mask keeps driving
+   geometry and shadow, so the opening does not creep outwards. */
+function _ffGrowFringe(core, d, w, h, passes) {
+  const kill = Uint8Array.from(core);
+  for (let pass = 0; pass < passes; pass++) {
+    const add = [];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const p = y * w + x;
+        if (kill[p]) continue;
+        if (!((x > 0 && kill[p - 1]) || (x < w - 1 && kill[p + 1]) ||
+              (y > 0 && kill[p - w]) || (y < h - 1 && kill[p + w]))) continue;
+        const i = p * 4;
+        if (d[i + 3] < 8) continue;
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        if (g > r && g > b && g - Math.max(r, b) > 12) add.push(p);
+      }
+    }
+    if (!add.length) break;
+    for (const p of add) kill[p] = 1;
+  }
+  return kill;
 }
 
 async function sceneKeyOut(L, tol) {
@@ -3076,8 +3221,9 @@ async function sceneKeyOut(L, tol) {
     shadowPlate = sp.toDataURL('image/png');
   }
 
-  /* knock the key out of the scene */
-  for (let p = 0, i = 0; p < w * h; p++, i += 4) if (mask[p]) d[i + 3] = 0;
+  /* knock the key out of the scene, fringe included */
+  const kill = _ffGrowFringe(mask, d, w, h, 2);
+  for (let p = 0, i = 0; p < w * h; p++, i += 4) if (kill[p]) d[i + 3] = 0;
   ctx.putImageData(im, 0, 0);
 
   /* every separate key region becomes its own opening, so an occluded or
@@ -3136,19 +3282,24 @@ async function sceneKeyApply(L, tol) {
   frames.forEach(f => doc.layers.push(f));  // frames below
   doc.layers.push(L);                       // scene above them
 
-  /* the harvested shadow becomes a normal shadow layer, so the buyer's
-     artwork picks up the same window light as the frame */
+  /* The harvested shadow becomes a normal shadow layer so the buyer's
+     artwork picks up the same window light as the frame. It is built at
+     full strength against the scene ceiling, because the plate already
+     encodes exactly how dark the model made each pixel - the goal is to
+     reproduce that measurement, not to restyle it. The Shadow % button
+     still dials it back afterwards. */
   res.shadowLayerAdded = false;
   if (res.shadowPlate) {
     try {
-      const strength = Math.max(0.02, Math.min(0.45, ffShadowStrength));
-      const shadowSrc = await buildShadowSource(res.shadowPlate, strength);
+      const strength = 0.45;
+      const shadowSrc = await buildShadowSource(res.shadowPlate, strength, SHADOW_SCENE_MAX_ALPHA);
       doc.layers.push({
         id: uid(), type: 'shadow', name: 'Scene Shadow', sceneSource: true,
         visible: true, locked: true, opacity: 1,
-        src: res.shadowPlate, shadowSrc, strength,
+        src: res.shadowPlate, shadowSrc, strength, maxAlpha: SHADOW_SCENE_MAX_ALPHA,
         x: L.x, y: L.y, w: L.w, h: L.h, rotation: 0
       });
+      ffShadowStrength = strength;
       res.shadowLayerAdded = true;
       updateShadowButton();
     } catch (e) { res.shadowLayerAdded = false }
