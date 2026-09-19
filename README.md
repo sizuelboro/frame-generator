@@ -14,16 +14,18 @@ Version **7.5.0**. See [CHANGELOG.md](CHANGELOG.md).
 | `frameforge-worker11/` | Cloudflare Worker + R2 frame library. |
 | `frameforge-canva-app11/` | Canva side-panel app. |
 | `shared/frameforge-limits.js` | **Single source of truth** for Canva platform limits. |
-| `tools/` | Limits generator, drift guard, test runners. |
+| `tools/` | Limits generator, drift guards, deploy sync, test runners. |
 | `tests/` | Studio browser suite. |
 | `docs/` | Architecture, deploy, cloud library, buyer checklist, validation. |
+| `docs/archive/` | Superseded release notes. History only — do not treat as current. |
 | `mockups/` | Sample overlay and thumbnail assets. |
+| `repo/` | **Generated** Cloudflare Pages deploy mirror. Never edit by hand. |
 
 ## Quick start
 
 ```bash
 npm install          # root has no runtime deps; installs nothing to ship
-npm test             # limits guard + Worker tests + Studio browser tests
+npm test             # limits + script order + deploy mirror guards, then all tests
 ```
 
 Per package:
@@ -48,6 +50,20 @@ npm run check:limits   # fails if any layer drifted
 The Studio is a bundle of **ordered classic scripts**, not ES modules. They
 share one global scope on purpose, so the order in `index.html` is
 load-bearing. Appending a file is safe; reordering is not.
+
+```bash
+npm run check:order    # fails if index.html and js/ disagree, or order regresses
+```
+
+**`repo/` is generated, not authored.** It is the Cloudflare Pages deploy
+mirror of `index.html`, `_headers`, `js/` and `mockups/`. Edit the root, then:
+
+```bash
+npm run sync:deploy    # regenerate repo/ from the root (repo/.git is preserved)
+npm run check:deploy   # fails if the mirror drifted from the root
+```
+
+Both guards run as part of `npm test`.
 
 Read [docs/architecture.md](docs/architecture.md) before changing tracing,
 bleed or path encoding.

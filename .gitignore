@@ -1,6 +1,9 @@
 node_modules/
 *.zip
-repo/
-*.bak
 dist/
 .wrangler/
+*.bak
+
+# repo/ is the generated Cloudflare Pages deploy mirror and has its own .git.
+# Never commit it into this repository. Regenerate with `npm run sync:deploy`.
+repo/

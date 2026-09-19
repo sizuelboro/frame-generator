@@ -7,10 +7,13 @@
   "scripts": {
     "build:limits": "node tools/build-studio-limits.mjs",
     "check:limits": "node tools/check-limits.mjs",
+    "check:order": "node tools/check-script-order.mjs",
+    "check:deploy": "node tools/sync-deploy.mjs --check",
+    "sync:deploy": "node tools/sync-deploy.mjs",
     "test:worker": "node tools/test-worker.mjs",
     "test:studio": "node tools/test-studio.mjs",
     "test:compat": "node tools/test-compat.mjs",
-    "test": "npm run build:limits && npm run check:limits && npm run test:worker && npm run test:compat && npm run test:studio"
+    "test": "npm run build:limits && npm run check:limits && npm run check:order && npm run check:deploy && npm run test:worker && npm run test:compat && npm run test:studio"
   },
   "engines": {
     "node": "^22 || ^24"

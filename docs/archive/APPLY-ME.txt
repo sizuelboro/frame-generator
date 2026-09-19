@@ -1,0 +1,35 @@
+FrameForge 7.5.0 - multi-opening auto-detect
+============================================
+
+These are only the files that changed since 7.4.x. The paths here match your
+GitHub layout (sizuelboro/frameforge), where index.html and js/ live at the
+repository root and Cloudflare Pages deploys from that root.
+
+Copy these over the repo root, keeping the folder structure:
+
+  js/11-detect.js        multi-opening + multi-screen detection
+  js/08-bulk.js          Bulk 100 publishes one path per opening
+  js/06-properties.js    "How it works" panel wording
+  tests/studio.test.html 51 new checks (121 total in the Studio suite)
+  docs/validation.md     updated results
+  docs/architecture.md   multi-opening frame model
+  CHANGELOG.md           7.5.0 entry
+  README.md              version bump
+  package.json           version bump
+
+Nothing changed in the Worker or the Canva app - this feature needed no
+change on either side, so do not redeploy them.
+
+Then:
+
+  npm test        expect 27 + 33 + 121 passed, 0 failed
+  git add -A
+  git commit -m "FrameForge 7.5.0: multi-opening auto-detect"
+  git push
+
+Cloudflare Pages auto-deploys from main, so the Studio updates by itself.
+Hard-refresh with Ctrl+Shift+R afterwards.
+
+Note: js/01-limits.js is generated from shared/frameforge-limits.js by
+`npm run build:limits`. It did not change in this release, so it is not
+included here.
