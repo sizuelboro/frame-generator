@@ -13,7 +13,7 @@ const page = 'file://' + join(root, 'tests', 'studio.test.html');
 
 let dom;
 try {
-  dom = execFileSync('chromium', [
+  dom = execFileSync(process.env.CHROME_BIN || 'chromium', [
     '--headless', '--no-sandbox', '--disable-gpu',
     '--virtual-time-budget=25000', '--dump-dom', page,
   ], { encoding: 'utf8', maxBuffer: 1024 * 1024 * 64, stdio: ['ignore', 'pipe', 'ignore'] });
@@ -40,3 +40,4 @@ const failed = lines.filter((l) => l.startsWith('FAIL'));
 const passed = lines.filter((l) => l.startsWith('PASS'));
 console.log(`\n${passed.length} passed, ${failed.length} failed`);
 process.exit(failed.length ? 1 : 0);
+
