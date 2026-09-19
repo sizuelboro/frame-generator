@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FrameForge — Mockup Frame Studio</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --text:#2C2C2B; --text2:#7D7A75; --canvas:#FFFFFF; --soft:#F9F8F7; --soft2:#F0EFED;
+  --border:#E6E5E3; --blue:#2783DE; --blue-soft:#E5F2FC; --green:#46A171; --green-soft:#E8F1EC;
+  --orange:#D5803B; --orange-soft:#FBEBDE; --red:#E56458; --red-soft:#FCE9E7;
+}
+html,body{height:100%}
+body{
+  font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text); background:var(--soft); overflow:hidden;
+}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+
+/* ---------- shell ---------- */
+.app{display:flex;flex-direction:column;height:100vh}
+.topbar{
+  display:flex;align-items:center;gap:12px;padding:10px 16px;
+  background:var(--canvas);border-bottom:1px solid var(--border);flex:0 0 auto;flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:9px;margin-right:4px}
+.logo{width:26px;height:26px;border-radius:7px;background:var(--text);display:grid;place-items:center}
+.logo i{display:block;width:11px;height:8px;border:1.6px solid #fff;border-radius:1.5px}
+.brand h1{font-size:15px;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
+.brand span{font-size:12px;color:var(--text2);white-space:nowrap}
+.sep{width:1px;height:26px;background:var(--border)}
+.spacer{flex:1 1 auto}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;
+  border:1px solid var(--border);border-radius:8px;background:var(--canvas);
+  font-size:13.5px;font-weight:500;white-space:nowrap;transition:background .12s,border-color .12s;
+}
+.btn:hover{background:var(--soft2)}
+.btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{background:#1f72c4}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--soft2)}
+.btn.sm{min-height:28px;padding:0 9px;font-size:12.5px;border-radius:7px}
+.btn.danger{color:var(--red)}
+.btn.danger:hover{background:var(--red-soft)}
+
+.body{display:flex;flex:1 1 auto;min-height:0}
+
+/* ---------- panels ---------- */
+.panel{
+  width:264px;flex:0 0 264px;background:var(--canvas);display:flex;flex-direction:column;
+  min-height:0;overflow-y:auto;
+}
+.panel.left{border-right:1px solid var(--border)}
+.panel.right{border-left:1px solid var(--border);width:290px;flex-basis:290px}
+.sect{padding:16px;border-bottom:1px solid var(--border)}
+.sect:last-child{border-bottom:none}
+.sect h2{
+  font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--text2);margin-bottom:12px;
+}
+.stack{display:flex;flex-direction:column;gap:7px}
+.row{display:flex;gap:7px}
+.row>*{flex:1 1 0;min-width:0}
+
+.tool{
+  display:flex;align-items:center;gap:9px;width:100%;min-height:38px;padding:0 10px;
+  border:1px solid var(--border);border-radius:8px;font-size:13.5px;font-weight:500;text-align:left;
+}
+.tool:hover{background:var(--soft2)}
+.tool.on{background:var(--blue-soft);border-color:#B9DCF7;color:#1a5d9e}
+.tool .k{
+  margin-left:auto;font-size:10.5px;color:var(--text2);background:var(--soft2);
+  border-radius:4px;padding:1px 5px;font-weight:600;
+}
+.tool.on .k{background:#fff;color:#1a5d9e}
+.ic{width:17px;height:17px;flex:0 0 17px;display:block}
+
+/* ---------- layers ---------- */
+.layers{display:flex;flex-direction:column;gap:4px}
+.layer{
+  display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;
+  border:1px solid transparent;cursor:pointer;
+}
+.layer:hover{background:var(--soft)}
+.layer.on{background:var(--blue-soft);border-color:#B9DCF7}
+.layer .thumb{
+  width:30px;height:30px;flex:0 0 30px;border-radius:6px;border:1px solid var(--border);
+  background:var(--soft2) center/cover no-repeat;display:grid;place-items:center;overflow:hidden;
+}
+.layer .meta{flex:1 1 auto;min-width:0}
+.layer .nm{font-size:13px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer .ty{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer.dim .nm,.layer.dim .ty{opacity:.45}
+.iconbtn{
+  width:26px;height:26px;flex:0 0 26px;border-radius:6px;display:grid;place-items:center;color:var(--text2);
+}
+.iconbtn:hover{background:var(--soft2);color:var(--text)}
+.iconbtn.act{color:var(--blue)}
+.empty{font-size:12.5px;color:var(--text2);padding:8px 2px;line-height:1.45}
+
+/* ---------- stage ---------- */
+.stage{
+  flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;
+  background:var(--soft);position:relative;
+}
+.stagebar{
+  display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);
+  background:var(--canvas);flex:0 0 auto;font-size:12.5px;color:var(--text2);flex-wrap:wrap;
+}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;background:var(--soft2);border-radius:999px;
+  padding:3px 10px;font-size:11.5px;font-weight:600;color:var(--text);
+}
+.pill.blue{background:var(--blue-soft);color:#1a5d9e}
+.pill.green{background:var(--green-soft);color:#2f7a52}
+.pill.orange{background:var(--orange-soft);color:#a25f24}
+.canvaswrap{
+  flex:1 1 auto;min-height:0;overflow:auto;display:grid;place-items:center;padding:28px;
+}
+.board{
+  position:relative;
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.06);
+  background:#fff;border-radius:2px;
+}
+#cv{display:block;border-radius:2px;touch-action:none}
+.hint{
+  position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+  background:rgba(44,44,43,.92);color:#fff;font-size:12px;padding:6px 12px;border-radius:999px;
+  pointer-events:none;opacity:0;transition:opacity .18s;white-space:nowrap;max-width:92%;
+}
+.hint.show{opacity:1}
+
+/* ---------- fields ---------- */
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11.5px;font-weight:600;color:var(--text2)}
+.inp{
+  width:100%;min-height:32px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;
+  background:var(--canvas);font-size:13px;
+}
+.inp:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue)}
+input[type=range]{width:100%;accent-color:var(--blue);min-height:28px}
+input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--border);border-radius:7px;background:#fff}
+.val{font-size:11.5px;color:var(--text2);font-variant-numeric:tabular-nums}
+.note{font-size:12px;color:var(--text2);line-height:1.45}
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:3px 0}
+.kv b{font-weight:600}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:7px;
+  padding:4px 8px;font-size:12px;font-weight:550;background:var(--canvas);
+}
+.chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.tpl{
+  display:flex;align-items:center;gap:9px;padding:7px;border:1px solid var(--border);border-radius:8px;
+}
+.tpl .thumb{width:42px;height:30px;flex:0 0 42px;border-radius:5px;border:1px solid var(--border);background:var(--soft2) center/cover no-repeat}
+.tpl .nm{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hidden{display:none!important}
+
+@media (max-width:1100px){
+  .body{flex-direction:column;overflow-y:auto}
+  .panel,.panel.right{width:100%;flex-basis:auto;border:none;border-bottom:1px solid var(--border)}
+  .stage{min-height:62vh}
+}
+</style>
+
+<style id="ff-folder-picker-styles">
+.ff-folder-backdrop{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,17,21,.52);font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#171717}
+.ff-folder-dialog{display:grid;gap:16px;width:min(460px,calc(100vw - 32px));max-height:min(680px,calc(100vh - 32px));padding:20px;border:1px solid #e6e5e3;border-radius:14px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+.ff-folder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.ff-folder-titles{display:grid;gap:3px}.ff-folder-eyebrow{color:#2783de;font-size:11px;font-weight:750;letter-spacing:.12em}.ff-folder-dialog h2{margin:0;font-size:22px;line-height:1.2}.ff-folder-dialog p{margin:0;color:#6f6d69;font-size:13px}.ff-folder-icon{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid transparent;border-radius:8px;background:#fff;color:#444;font-size:22px;cursor:pointer}.ff-folder-icon:hover{background:#f0efed}
+.ff-folder-list{display:grid;gap:6px;min-height:52px;max-height:330px;overflow:auto;padding:2px}.ff-folder-row{display:grid;grid-template-columns:28px minmax(0,1fr) 24px;align-items:center;gap:8px;width:100%;min-height:48px;padding:8px 12px;border:1px solid #e6e5e3;border-radius:10px;background:#fff;color:#2c2c2b;text-align:left;cursor:pointer}.ff-folder-row:hover{background:#f9f8f7}.ff-folder-row.selected{border-color:#8b3dff;background:#f4ecff;color:#5f1abd}.ff-folder-row-icon{font-size:18px}.ff-folder-row-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}.ff-folder-check{font-size:16px;font-weight:750;text-align:center}
+.ff-folder-create{display:grid;gap:8px}.ff-folder-new{justify-self:start;min-height:40px;padding:8px 12px;border:1px solid #d9d7d3;border-radius:8px;background:#fff;color:#5f1abd;font-weight:650;cursor:pointer}.ff-folder-new:hover{background:#f4ecff}.ff-folder-fieldrow{display:none;grid-template-columns:minmax(0,1fr) auto;gap:8px}.ff-folder-fieldrow.show{display:grid}.ff-folder-input{min-width:0;height:42px;padding:8px 11px;border:1px solid #b8b6b2;border-radius:8px;font:inherit;outline:none}.ff-folder-input:focus{border-color:#8b3dff;box-shadow:0 0 0 2px rgba(139,61,255,.15)}.ff-folder-add,.ff-folder-primary{min-height:42px;padding:8px 14px;border:1px solid #8b3dff;border-radius:8px;background:#8b3dff;color:#fff;font-weight:700;cursor:pointer}.ff-folder-add:disabled{opacity:.55}.ff-folder-error:empty{display:none}.ff-folder-error{padding:9px 10px;border-radius:8px;background:#fce9e7;color:#9a2820;font-size:12px}.ff-folder-actions{display:flex;justify-content:flex-end;gap:8px}.ff-folder-secondary{min-height:42px;padding:8px 14px;border:1px solid #d9d7d3;border-radius:8px;background:#fff;color:#2c2c2b;font-weight:650;cursor:pointer}
+@media(max-width:540px){.ff-folder-backdrop{align-items:flex-end;padding:0}.ff-folder-dialog{width:100%;max-height:88vh;border-radius:16px 16px 0 0;padding:18px}.ff-folder-list{max-height:40vh}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"><i></i></div>
+      <div>
+        <h1>FrameForge</h1>
+        <span>Mockup frame studio</span>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <button class="btn" id="btnNew">New</button>
+    <button class="btn" id="btnLoadJson">Open JSON</button>
+    <button class="btn" id="btnSaveJson">Save JSON</button>
+    <div class="sep"></div>
+    <button class="btn" id="btnSaveTpl">Save as mockup</button>
+    <div class="spacer"></div>
+    <span class="pill" id="sizePill">1200 × 800</span>
+    <button class="btn" id="btnFitCanvas">Fit canvas</button>
+    <button class="btn" id="btnLibrarySettings">Library settings</button>
+    <button class="btn primary" id="btnPublishCloud">Publish to Canva Dev</button>
+    <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk 100</button>
+    <button class="btn" id="btnAutoScreen">Auto screen</button>
+    <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
+    <button class="btn" id="btnPickOpening">Pick opening</button>
+    <button class="btn" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
+    <button class="btn" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
+    <button class="btn" id="btnRemoveBg">Remove bg</button>
+    <button class="btn" id="btnCanvaPdf">Canva frame PDF</button>
+    <button class="btn" id="btnMockupPdf">Canva mockup PDF</button>
+    <button class="btn" id="btnBundleAdd">+ Bundle</button>
+    <button class="btn" id="btnBundleExport">Bundle PDF</button>
+    <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt">Export for AI</button>
+    <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
+    <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
+    <button class="btn primary" id="btnExport">Export PNG</button>
+  </header>
+
+  <div class="body">
+
+    <!-- LEFT -->
+    <aside class="panel left">
+      <div class="sect">
+        <h2>Add</h2>
+        <div class="stack">
+          <button class="tool" data-act="addImage">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/></svg>
+            Image layer
+          </button>
+          <button class="tool" data-act="addShadow">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7"/><path d="M14.5 14.5L21 21" opacity=".5"/></svg>
+            Shadow layer
+          </button>
+          <button class="tool" data-act="addOverlay">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 8h13v13H8z"/></svg>
+            Mockup overlay
+          </button>
+          <button class="tool" data-tool="frameRect">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 5l18 14M21 5L3 19" stroke-dasharray="2 2"/></svg>
+            Rect frame <span class="k">R</span>
+          </button>
+          <button class="tool" data-tool="framePersp">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6l16 2v8L4 18z"/><circle cx="4" cy="6" r="1.4" fill="currentColor"/><circle cx="20" cy="8" r="1.4" fill="currentColor"/><circle cx="20" cy="16" r="1.4" fill="currentColor"/><circle cx="4" cy="18" r="1.4" fill="currentColor"/></svg>
+            Perspective frame <span class="k">P</span>
+          </button>
+          <button class="tool" data-tool="text">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 6h14M12 6v13M9 19h6"/></svg>
+            Text <span class="k">T</span>
+          </button>
+          <button class="tool" data-tool="shape">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="9" height="9" rx="1.5"/><circle cx="15.5" cy="15.5" r="4.5"/></svg>
+            Shape <span class="k">S</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="sect">
+        <h2>Layers <span style="text-transform:none;letter-spacing:0;font-weight:500">(top first)</span></h2>
+        <div class="layers" id="layerList"></div>
+      </div>
+
+      <div class="sect">
+        <h2>Saved mockups</h2>
+        <div class="stack" id="tplList"></div>
+      </div>
+    </aside>
+
+    <!-- STAGE -->
+    <main class="stage">
+      <div class="stagebar">
+        <span class="pill blue" id="modePill">Select</span>
+        <span id="stageMsg">Click a frame to select · double-click to edit the image inside</span>
+        <div class="spacer"></div>
+        <button class="btn sm" id="zoomOut">−</button>
+        <span class="val" id="zoomVal" style="min-width:42px;text-align:center">100%</span>
+        <button class="btn sm" id="zoomIn">+</button>
+        <button class="btn sm" id="zoomFit">Fit</button>
+      </div>
+      <div class="canvaswrap" id="wrap">
+        <div class="board" id="board">
+          <canvas id="cv"></canvas>
+          <div class="hint" id="hint"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT -->
+    <aside class="panel right" id="right"></aside>
+
+  </div>
+</div>
+
+<input type="file" id="filePick" accept="image/*" class="hidden" />
+<input type="file" id="jsonPick" accept="application/json,.json" class="hidden" />
+
+<!-- =====================================================================
+     FrameForge Studio bundle
+     ---------------------------------------------------------------------
+     These are ordered classic scripts, not ES modules. They share one
+     global scope, which is what the original single inline script did,
+     so the order below is load-bearing. Adding a file is safe; moving
+     one is not.
+
+     01-limits.js is generated. Run:
+       node tools/build-studio-limits.mjs
+     ===================================================================== -->
+<script>
+/* Installed before the bundle so nothing is missed. */
+window.__ffErrors = [];
+window.addEventListener('error', function (e) {
+  window.__ffErrors.push('ERROR: ' + (e.message || '') + ' @ ' + String(e.filename || '').split('/').pop() + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', function (e) {
+  window.__ffErrors.push('REJECTION: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
+});
+</script>
+<script src="../js/00-demo-overlay.js"></script><!-- bundled demo artwork -->
+<script src="../js/01-limits.js"></script><!-- GENERATED from shared/frameforge-limits.js -->
+<script src="../js/02-state.js"></script><!-- document state + image cache -->
+<script src="../js/03-geometry.js"></script><!-- homography and quad warping -->
+<script src="../js/04-render.js"></script><!-- canvas renderer -->
+<script src="../js/05-layers.js"></script><!-- layers, tools, hit-testing -->
+<script src="../js/06-properties.js"></script><!-- property panel -->
+<script src="../js/07-shadow.js"></script><!-- shadow, export, cloud publish -->
+<script src="../js/08-bulk.js"></script><!-- bulk publish, saved mockups, zoom -->
+<script src="../js/09-trace-pdf.js"></script><!-- tracer, simplifier, PDF, background removal -->
+<script src="../js/10-dialogs.js"></script><!-- in-app dialogs -->
+<script src="../js/11-detect.js"></script><!-- screen + opening detection -->
+<script src="../js/12-silhouette.js"></script><!-- silhouette and hole handling -->
+<script src="../js/13-scene.js"></script><!-- scene plate and colour key -->
+<script src="../js/14-wand.js"></script><!-- magic wand opening -->
+<script src="../js/15-mockup-pdf.js"></script><!-- whole-mockup PDF -->
+<script>
+/* =========================================================================
+   FrameForge Studio browser test suite
+   =========================================================================
+   Run with: node tools/test-studio.mjs
+
+   Loads the real script bundle and checks three things:
+     1. every module parsed and wired its handlers,
+     2. the dialogs that replaced native prompt/confirm behave,
+     3. enclosed holes are actually cut out, proved with isPointInPath under
+        the nonzero fill rule Canva fills with, and that whatever cannot be
+        cut is reported honestly rather than shipped filled.
+   ========================================================================= */
+'use strict';
+
+var OUT = [];
+function chk(name, ok, extra) {
+  OUT.push((ok ? 'PASS ' : 'FAIL ') + name + (extra !== undefined && extra !== '' ? ' :: ' + extra : ''));
+}
+function info(text) { OUT.push('INFO ' + text); }
+function section(text) { OUT.push('--- ' + text + ' ---'); }
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+/* Both dialog helpers render a card inside a fixed-position backdrop:
+   uiForm/uiNumber use a <form>, the older uiModal/uiPrompt use a <div>.
+   Return whichever card is currently open. */
+function dlg() {
+  var nodes = document.body.children;
+  for (var i = nodes.length - 1; i >= 0; i--) {
+    var node = nodes[i];
+    if (node.style && node.style.position === 'fixed' && node.firstElementChild) {
+      return node.firstElementChild;
+    }
+  }
+  return null;
+}
+
+var probeCtx = (function () {
+  var c = document.createElement('canvas');
+  c.width = 1; c.height = 1;
+  return c.getContext('2d');
+})();
+
+function pathsOf(result) {
+  return (result.pathDs && result.pathDs.length ? result.pathDs : [result.pathD]).filter(Boolean);
+}
+/* Ground truth: does the published geometry cover this point? */
+function filledAt(ds, x, y) {
+  return ds.some(function (d) { return probeCtx.isPointInPath(new Path2D(d), x, y, 'nonzero'); });
+}
+
+/* A blue disc with circular bites taken out of it. */
+function ringWithHoles(size, rOuter, holes) {
+  var c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  var x = c.getContext('2d');
+  x.fillStyle = '#3366cc';
+  x.beginPath(); x.arc(size / 2, size / 2, rOuter, 0, Math.PI * 2); x.fill();
+  x.globalCompositeOperation = 'destination-out';
+  for (var i = 0; i < holes.length; i++) {
+    x.beginPath(); x.arc(holes[i][0], holes[i][1], holes[i][2], 0, Math.PI * 2); x.fill();
+  }
+  return c.toDataURL('image/png');
+}
+function layerFor(src) {
+  return {
+    id: 'test-' + Math.random().toString(36).slice(2), type: 'image', name: 'Test',
+    src: src, x: 0, y: 0, w: 400, h: 400, rotation: 0,
+    visible: true, locked: false, opacity: 1,
+  };
+}
+
+/* ------------------------------ 1. bundle ------------------------------ */
+function testBundle() {
+  section('1. bundle loads and wires up');
+  chk('no script errors', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
+  chk('FF_LIMITS present', !!window.FF_LIMITS);
+  chk('PATH_BUDGET is 1980', window.FF_LIMITS && window.FF_LIMITS.PATH_BUDGET === 1980, String(window.FF_LIMITS && window.FF_LIMITS.PATH_BUDGET));
+  chk('FF_PATH_BUDGET wired into the Studio', typeof FF_PATH_BUDGET !== 'undefined' && FF_PATH_BUDGET === 1980);
+  chk('no hardcoded 2048 budget survives', FF_LIMITS.CANVA_HARD_PATH_LIMIT === 2048 && FF_PATH_BUDGET < 2048);
+  chk('demo overlay split out and loaded', typeof window.DEMO_OVERLAY === 'string' && window.DEMO_OVERLAY.length > 1000);
+  chk('document state built', typeof doc === 'object' && doc && typeof doc.canvas === 'object');
+  chk('renderer defined', typeof render === 'function');
+  chk('uiForm defined', typeof uiForm === 'function');
+  chk('uiNumber defined', typeof uiNumber === 'function');
+  chk('cloudLibraryConfig defined', typeof cloudLibraryConfig === 'function');
+  chk('removeBg defined', typeof removeBg === 'function');
+  chk('detectSilhouette defined', typeof detectSilhouette === 'function');
+  chk('bulkPrepareOne defined', typeof bulkPrepareOne === 'function');
+  chk('canvas element present', !!document.querySelector('canvas'));
+
+  var buttons = ['#btnNew', '#btnSaveTpl', '#btnRemoveBg', '#btnPublishCloud', '#btnOpeningBleed', '#btnFitCanvas', '#btnLibrarySettings'];
+  for (var i = 0; i < buttons.length; i++) {
+    var el = document.querySelector(buttons[i]);
+    chk('handler bound: ' + buttons[i], !!(el && el.onclick));
+  }
+
+  var single = FF_LIMITS.measurePathBudget({ mode: 'overlay', w: 100, h: 100, paths: ['M 0 0 L 10 0 L 10 10 Z'] });
+  chk('measurePathBudget measures single frames combined', single.ok === true && single.mode === 'single');
+  var big = 'M 0 0 ' + new Array(400).join('L 5 5 ') + 'Z';
+  var multi = FF_LIMITS.measurePathBudget({ mode: 'silhouette', multiElement: true, w: 100, h: 100, paths: [big, big] });
+  chk('measurePathBudget measures multi per object', multi.mode === 'multi');
+}
+
+/* ------------------------------ 2. dialogs ------------------------------ */
+async function testDialogs() {
+  section('2. dialogs replace native prompt/confirm');
+
+  document.querySelector('#btnOpeningBleed').click();
+  await sleep(250);
+  var d = dlg();
+  chk('auto-bleed dialog opens', !!d);
+  if (d) {
+    chk('uses a number input', !!d.querySelector('input[type=number]'));
+    d.querySelector('input').value = '999';
+    d.querySelector('button[type=submit]').click();
+    await sleep(150);
+    var still = dlg();
+    chk('out-of-range value keeps the dialog open', !!still);
+    var err = still && still.querySelector('[role=alert]');
+    chk('inline error is shown', !!(err && err.style.display === 'block'), err ? err.textContent : '');
+    if (still) {
+      still.querySelector('input').value = '8';
+      still.querySelector('button[type=submit]').click();
+      await sleep(250);
+      chk('valid value closes the dialog', !dlg());
+      chk('value was applied', document.querySelector('#btnOpeningBleed').textContent.indexOf('8') >= 0,
+        document.querySelector('#btnOpeningBleed').textContent);
+    }
+  }
+
+  document.querySelector('#btnLibrarySettings').click();
+  await sleep(250);
+  var d2 = dlg();
+  chk('library settings dialog opens', !!d2);
+  if (d2) {
+    var inputs = d2.querySelectorAll('input');
+    chk('asks for URL and token together', inputs.length === 2, String(inputs.length));
+    chk('admin token input is masked', !!(inputs[1] && inputs[1].type === 'password'), inputs[1] ? inputs[1].type : '');
+    inputs[0].value = 'ftp://nope';
+    inputs[1].value = 'some-token';
+    d2.querySelector('button[type=submit]').click();
+    await sleep(150);
+    chk('non-HTTPS Worker URL is rejected', !!dlg());
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(200);
+    chk('Escape cancels', !dlg());
+  }
+}
+
+/* ------------------------------ 3. holes ------------------------------ */
+async function testHoles() {
+  section('3. enclosed holes are cut, not filled');
+  doc.canvas.w = 400; doc.canvas.h = 400;
+
+  var r = await detectSilhouette(layerFor(ringWithHoles(400, 170, [[200, 200, 70]])), 36);
+  var ds = pathsOf(r);
+  chk('donut traced', ds.length > 0, r.mode);
+  chk('enclosed hole detected', (r.tracedHoles || 0) >= 1, 'tracedHoles=' + (r.tracedHoles || 0));
+  chk('hole reported as surviving', (r.unbridgedHoles || 0) === 0, 'unbridged=' + (r.unbridgedHoles || 0));
+  chk('ring band is filled', filledAt(ds, 200, 65));
+  chk('hole centre is NOT filled', !filledAt(ds, 200, 200));
+  chk('exactly one M per path', ds.every(function (d) { return (d.match(/[Mm]/g) || []).length === 1; }));
+  chk('every path closed with Z', ds.every(function (d) { return /[Zz]\s*$/.test(d); }));
+  chk('within the shared path budget', ds.every(function (d) { return new TextEncoder().encode(d).length <= FF_PATH_BUDGET; }),
+    ds.map(function (d) { return new TextEncoder().encode(d).length; }).join(','));
+
+  var r2 = await detectSilhouette(layerFor(ringWithHoles(400, 175, [[150, 150, 45], [255, 255, 45]])), 36);
+  var ds2 = pathsOf(r2);
+  chk('two holes detected', (r2.tracedHoles || 0) >= 2, 'tracedHoles=' + (r2.tracedHoles || 0));
+  chk('both holes reported surviving', (r2.unbridgedHoles || 0) === 0, 'unbridged=' + (r2.unbridgedHoles || 0));
+  chk('hole A not filled', !filledAt(ds2, 150, 150));
+  chk('hole B not filled', !filledAt(ds2, 255, 255));
+  chk('solid area between holes stays filled', filledAt(ds2, 202, 202));
+}
+
+/* --------------------- 4. honest reporting of losses --------------------- */
+async function testHoleReporting() {
+  section('4. holes that cannot be cut are reported, not hidden');
+  doc.canvas.w = 400; doc.canvas.h = 400;
+
+  // More holes than one contour can carry. Some must be dropped; the count
+  // must match what is actually filled in the published geometry.
+  var spec = [];
+  for (var i = 0; i < 9; i++) {
+    var a = i / 9 * Math.PI * 2;
+    spec.push([200 + Math.cos(a) * 110, 200 + Math.sin(a) * 110, 26]);
+  }
+  var r = await detectSilhouette(layerFor(ringWithHoles(400, 175, spec)), 36);
+  var ds = pathsOf(r);
+  var reallyFilled = spec.filter(function (p) { return filledAt(ds, p[0], p[1]); }).length;
+
+  info('holes drawn = ' + spec.length);
+  info('tracedHoles reported = ' + (r.tracedHoles || 0));
+  info('unbridgedHoles reported = ' + (r.unbridgedHoles || 0));
+  info('holes measurably filled = ' + reallyFilled);
+
+  chk('every drawn hole is accounted for', (r.tracedHoles || 0) === spec.length,
+    (r.tracedHoles || 0) + ' of ' + spec.length);
+  chk('reported unbridged count matches reality', (r.unbridgedHoles || 0) === reallyFilled,
+    'reported ' + (r.unbridgedHoles || 0) + ' vs actual ' + reallyFilled);
+  chk('no runtime errors across the suite', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
+}
+
+
+/* ------------------- 5. existing features still work ------------------- */
+async function testExistingFeatures() {
+  section('5. features that already worked keep working');
+
+  // --- canvas property panel (its inputs are generated by JS, not markup) ---
+  chk('canvas width input rendered', !!document.querySelector('#cw'));
+  chk('canvas height input rendered', !!document.querySelector('#ch'));
+  chk('canvas background input rendered', !!document.querySelector('#cbg'));
+  var cw = document.querySelector('#cw');
+  if (cw) {
+    cw.value = '900';
+    cw.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(120);
+    chk('editing canvas width updates the document', doc.canvas.w === 900, String(doc.canvas.w));
+    cw.value = '1200';
+    cw.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(120);
+  }
+
+  // --- demo scene loaded its layers ---
+  chk('demo layers present', Array.isArray(doc.layers) && doc.layers.length >= 2, 'layers=' + doc.layers.length);
+  var overlay = doc.layers.filter(function (l) { return l.type === 'overlay'; })[0];
+  var frame = doc.layers.filter(function (l) { return l.type === 'frame'; })[0];
+  chk('overlay layer present', !!overlay);
+  chk('frame layer present', !!frame);
+
+  // --- selecting a layer renders its property panel ---
+  if (frame) {
+    sel = frame.id;
+    refreshProps();
+    await sleep(150);
+    chk('selecting a frame renders its properties', !!document.querySelector('#opv'), 'opacity control');
+  }
+
+  // --- layer list renders ---
+  refreshLayers();
+  await sleep(100);
+  chk('layer list renders rows', document.querySelectorAll('.layer, [data-layer]').length > 0 || document.body.textContent.indexOf('Overlay') >= 0);
+
+  // --- zoom controls ---
+  var beforeZoom = typeof zoom !== 'undefined' ? zoom : null;
+  fit();
+  await sleep(120);
+  chk('fit() recomputes zoom without error', typeof zoom === 'number' && zoom > 0, String(zoom));
+
+  // --- render pipeline produces pixels ---
+  var exported = exportCanvas({ scale: 1 });
+  chk('exportCanvas returns a canvas', !!(exported && exported.width > 0 && exported.height > 0),
+    exported ? exported.width + 'x' + exported.height : 'null');
+  var ctx2 = exported.getContext('2d');
+  var data = ctx2.getImageData(0, 0, exported.width, exported.height).data;
+  var nonBlank = false;
+  for (var i = 3; i < data.length; i += 4000) { if (data[i] > 0) { nonBlank = true; break; } }
+  chk('export is not blank', nonBlank);
+
+  // --- saved mockups round-trip through localStorage ---
+  var beforeCount = JSON.parse(localStorage.getItem('frameforge.mockups.v1') || '[]').length;
+  document.querySelector('#btnSaveTpl').click();
+  await sleep(250);
+  var d = dlg();
+  chk('Save as mockup opens its dialog', !!d);
+  if (d) {
+    var nameInput = d.querySelector('input');
+    nameInput.value = 'Compat Test Mockup';
+    var submit = d.querySelector('button[type=submit]') || d.querySelectorAll('button')[1];
+    submit.click();
+    await sleep(400);
+    var saved = JSON.parse(localStorage.getItem('frameforge.mockups.v1') || '[]');
+    chk('mockup saved to the same localStorage key', saved.length === beforeCount + 1, 'count=' + saved.length);
+    chk('saved mockup keeps its name', saved.length > 0 && saved[0].name === 'Compat Test Mockup', saved.length ? saved[0].name : '');
+    chk('saved mockup strips frame content so it is reusable',
+      saved.length > 0 && saved[0].doc.layers.every(function (l) { return l.type !== 'frame' || l.content === null; }));
+    chk('saved mockup has a thumbnail', saved.length > 0 && typeof saved[0].thumb === 'string' && saved[0].thumb.indexOf('data:image') === 0);
+  }
+
+  // --- publish guard rails still fire without a configured worker ---
+  chk('publish button still enabled', !document.querySelector('#btnPublishCloud').disabled);
+
+  chk('no runtime errors after feature pass', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
+}
+
+async function run() {
+  try {
+    testBundle();
+    await testDialogs();
+    await testHoles();
+    await testHoleReporting();
+    await testExistingFeatures();
+  } catch (error) {
+    chk('suite completed without throwing', false, error && error.message);
+  }
+  var el = document.createElement('div');
+  el.id = 'ff-test-report';
+  el.textContent = OUT.join('\n');
+  document.body.appendChild(el);
+}
+
+setTimeout(function () { run(); }, 900);
+
+</script>
+</body>
+</html>

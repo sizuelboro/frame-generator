@@ -1,0 +1,169 @@
+# Changelog
+
+All notable changes to FrameForge. The three deliverables ship together and
+share one version number:
+
+| Component | Path |
+| --- | --- |
+| Studio (browser) | `index.html` + `js/` |
+| Library Worker | `frameforge-worker11/` |
+| Canva app | `frameforge-canva-app11/` |
+
+Reference material that is not version history lives in `docs/`.
+
+---
+
+## 7.4.0
+
+Consistency, hardening and maintainability pass. No change to the creator
+workflow: build a mockup, fit the canvas, publish, refresh the library, add.
+
+### Fixed
+
+- **Path budget disagreement between layers.** The Worker rejected publishes
+  above 1980 bytes while the Canva app and the Studio validated against
+  Canva's raw 2048-byte ceiling, so a frame could pass locally and then fail
+  in the cloud. All three layers now read one budget from
+  `shared/frameforge-limits.js`. `npm run check:limits` fails if they drift.
+- **Exact-multi frames measured with the wrong rule.** An exact-multi
+  silhouette inserts one element per path, so each path has its own budget.
+  The Worker and the Studio's bulk-publish path both measured the combined
+  string instead, rejecting valid multi-object silhouettes.
+- **`multiElement` was not persisted.** It was documented as fixed in
+  `VALIDATION.txt` but was dropped from the stored manifest entry, so the
+  Canva app had to guess the insert mode from `paths.length`. It is now
+  stored, and older manifest rows have it derived on read.
+- **Remove background did nothing.** `removeBg` is a pure function that
+  returns new image data. A later rebind of `#btnRemoveBg` replaced the
+  original handler but discarded the return value, so the button ran the work
+  and then threw the result away.
+- **Three dead duplicate handlers.** `#btnNew`, `#btnSaveTpl` and
+  `#btnRemoveBg` were each assigned twice. The first assignment was
+  unreachable, which is how the background-removal regression went unnoticed.
+- **Enclosed holes beyond the tracer cap were silently filled.** A contour
+  carries at most six knockouts. Holes past that cap, or under the minimum
+  area, were dropped without being counted, so a frame could publish with
+  filled holes and no warning.
+
+### Added
+
+- **Origin allowlist on the Worker.** Set `ALLOWED_ORIGINS` to restrict admin
+  routes. Reads stay public so inserted frames keep loading their assets. An
+  admin write from an origin outside the list is refused with 403 even when
+  the caller holds a valid token. Leaving it empty preserves the old open
+  behaviour.
+- **Rate limiting.** `ADMIN_LIMIT` (150/min) and `READ_LIMIT` (300/min)
+  bindings use the Workers Rate Limiting API, with an in-isolate token-bucket
+  fallback if the bindings are missing, and an early 413 on an oversized
+  `Content-Length` so a large body is refused before it is buffered. The
+  admin quota is sized so a full "Bulk 100" run fits, and bulk publishing now
+  treats a 429 as a wait: it honours `Retry-After` and resumes the same frame
+  instead of aborting the batch.
+- **Enclosed-hole verification.** Inner rings get explicit opposite winding,
+  then the finished path is probed with `isPointInPath` under the nonzero fill
+  rule to confirm each hole really is a hole. Whatever cannot be cut is
+  counted as `unbridgedHoles`, stored on the cloud entry, surfaced as a toast
+  at publish time, and shown as a warning badge in the Canva app with a
+  pointer to Smart Mask.
+- **`GET /api/health`** reporting version, active path budget, and whether
+  origin locking and rate limiting are configured.
+- **Test suites.** `npm test` runs the limit-drift guard, 27 Worker
+  regression tests against an in-memory R2 stub, and 51 browser checks that
+  load the real Studio bundle in headless Chromium, including geometric
+  proofs that donut holes are cut out.
+
+### Changed
+
+- **Native dialogs replaced everywhere.** The Studio's remaining
+  `prompt()`/`confirm()` calls are gone. `uiForm` and `uiNumber` provide
+  multi-field dialogs with a masked admin-token field, inline range
+  validation, and Escape/backdrop cancel. Native dialogs are blocked outright
+  in several embedded viewers, which made those buttons look dead.
+- **Studio split into modules.** `index.html` went from 3,826 lines to 325
+  and is now markup only. Logic lives in 17 ordered classic scripts under
+  `js/`. They share one global scope exactly as the single inline script did,
+  so the order in `index.html` is load-bearing. The 407 KB base64 demo
+  overlay moved to `js/00-demo-overlay.js`, which makes the markup
+  diffable. Verified pixel-identical to the previous build.
+- **Smart Mask validates before decoding.** File type and size were checked
+  after the photo had already been read and decoded into memory.
+- **Documentation consolidated.** Seven scattered version files became this
+  changelog plus `docs/`.
+
+### Compatibility
+
+Verified by `npm run test:compat` (33 checks):
+
+- Every `localStorage`/`sessionStorage` key is unchanged, so saved mockups,
+  Worker URL, admin token and bleed settings all survive the upgrade.
+- Manifest rows written by 7.0-7.3 still load, keep every original field, and
+  have `multiElement` derived on read. Republishing an existing name still
+  replaces rather than duplicates.
+- An already-installed Canva app build keeps working against the new Worker:
+  `folderSystem`, `bulkCreateOnly`, `frames`, `folders` and `count` are
+  unchanged and all new fields are additive.
+- With `ALLOWED_ORIGINS` unset, admin writes from any origin still succeed, so
+  upgrading the Worker alone changes nothing.
+- The Studio refactor lost nothing: all 121 original functions are still
+  defined, all 43 referenced element ids resolve, and the static markup has
+  the same 39 ids.
+
+### Known limitations
+
+- Enclosed holes are supported up to six knockouts per contour, bounded by
+  the path byte budget. Beyond that they are reported rather than cut; use
+  Smart Mask for an exact cut-out.
+- `manifest.json` and `folders.json` are single R2 objects. Keep publishing to
+  one creator session at a time, or introduce a Durable Object before
+  concurrent multi-user publishing.
+- Canva account-bound behaviour (Preview insertion, drag and drop, template
+  copies opened from a separate account, mobile) still has to be verified
+  manually. See `docs/buyer-test.md`.
+
+---
+
+## 7.3.1
+
+Backward-compatible hardening of the Worker and the Canva app.
+
+- JSON responses made non-cacheable with content-sniffing and referrer
+  protections; asset responses given content-sniffing protection.
+- Frame, asset and Smart Mask dimensions capped at 16384 px and required to
+  be finite.
+- PNG/JPEG data URLs verified against their real file signatures rather than
+  their declared MIME type.
+- Native paths required to have one `M`, supported commands only, finite
+  coordinates, and a closing `Z`.
+- Worker URLs required to be HTTPS, with localhost HTTP kept for development.
+- Smart Mask photo uploads restricted to images of at most 25 MB.
+- Admin-token UI explained as session-only and given a Clear token action.
+- Active folder buttons exposed their selected state to assistive technology.
+
+## 7.2.0
+
+Folder visibility fix.
+
+- A created folder appears in the sidebar immediately via a functional state
+  update, then the app reloads `/api/frames` and verifies it exists in Worker
+  storage. Success is shown only after that verification, so an old Worker
+  now produces a clear error instead of a false success.
+- Search is cleared and the new folder becomes active.
+
+## 7.0.0
+
+Folder system and bulk publishing.
+
+- Folder CRUD on the Worker, with frames in a deleted folder moved to
+  Uncategorized rather than deleted.
+- Bulk publish with auto-rename, and create-only publishing that refuses to
+  overwrite an existing name.
+
+## 6.3.0
+
+Multi-fidelity silhouette correction.
+
+- Preserved open gaps between legs and between arms and body.
+- Preserved small light cut-outs and separated hair strands.
+- Dedicated aligned path budgets for upper hair/body and lower legs.
+- Packed water into more native paths without aggressive straight-line
+  simplification.

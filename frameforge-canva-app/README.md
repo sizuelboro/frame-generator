@@ -1,5 +1,11 @@
 # FrameForge Canva App
 
+> Part of the FrameForge monorepo. Version history is in
+> [`CHANGELOG.md`](../CHANGELOG.md); architecture, deployment, the cloud
+> library and the buyer checklist are in [`docs/`](../docs/).
+> Canva path budgets come from `shared/frameforge-limits.js` — never
+> hardcode them.
+
 Private Canva app that inserts a group containing:
 
 1. a Canva shape whose fill has `dropTarget: true` (the frame opening), and

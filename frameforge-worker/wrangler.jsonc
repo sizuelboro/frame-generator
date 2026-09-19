@@ -3,13 +3,55 @@
   "name": "frameforge-library",
   "main": "src/index.js",
   "compatibility_date": "2026-09-01",
+
   "r2_buckets": [
     {
       "binding": "LIBRARY",
       "bucket_name": "frameforge-library"
     }
   ],
+
+  // Workers Rate Limiting API. Counters are global, not per-isolate, so these
+  // are the real protection. `period` may only be 10 or 60.
+  //
+  //   ADMIN_LIMIT  publish / delete / folder writes.
+  //                Sized for the real workload, not a guess: "Bulk 100"
+  //                publishes up to 100 frames back to back, and each frame
+  //                can retry on a name collision. 150/min clears a full bulk
+  //                run with headroom while still stopping a runaway loop.
+  //                The Studio also backs off and retries on 429, so a second
+  //                bulk run inside the same minute waits instead of failing.
+  //   READ_LIMIT   manifest + asset reads from the Canva app and the Studio.
+  "ratelimits": [
+    {
+      "name": "ADMIN_LIMIT",
+      "namespace_id": "1001",
+      "simple": { "limit": 150, "period": 60 }
+    },
+    {
+      "name": "READ_LIMIT",
+      "namespace_id": "1002",
+      "simple": { "limit": 300, "period": 60 }
+    }
+  ],
+
+  "vars": {
+    // Comma-separated exact origins allowed to call the admin routes from a
+    // browser. Leave empty to keep the old open behaviour.
+    //
+    // Set this to your real origins, for example:
+    //   "https://canvaforge.pages.dev,https://app-aabbccdd.canva-apps.com"
+    //
+    // Your Canva app origin is shown in the Developer Portal under
+    // "App origin". Reads (GET) stay public so buyers' inserted frames keep
+    // loading their assets.
+    "ALLOWED_ORIGINS": ""
+  },
+
   "observability": {
     "enabled": true
   }
+
+  // Secret, never put this in the file:
+  //   npx wrangler secret put ADMIN_TOKEN
 }

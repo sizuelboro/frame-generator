@@ -3,6 +3,15 @@ import { upload } from "@canva/asset";
 import { addElementAtPoint } from "@canva/design";
 import { useEffect, useState } from "react";
 import bundledMockups from "./mockups.json";
+import {
+  MAX_COORDINATE,
+  MAX_DIMENSION,
+  MAX_PHOTO_BYTES,
+  PATH_BUDGET,
+  isExactMulti,
+  maxPathsFor,
+  measurePathBudget,
+} from "./limits";
 
 type Mockup = {
   id: string;
@@ -15,6 +24,13 @@ type Mockup = {
   smartMask?: boolean;
   maskUrl?: string | null;
   multiElement?: boolean;
+  /**
+   * Openings that are fully enclosed holes the Studio could not bridge into
+   * the outer contour. Canva paths allow exactly one M, so an enclosed hole
+   * cannot be expressed natively. A non-zero value means this frame will
+   * insert with those holes filled in.
+   */
+  unbridgedHoles?: number;
   overlayUrl?: string | null;
   thumbUrl?: string;
   mimeType?: "image/png" | "image/jpeg";
@@ -44,7 +60,7 @@ function validateCanvaPath(path: string): string | null {
   if (commands.some((command) => !"mlhvcsaz".includes(command.toLowerCase()))) return "A path contains an unsupported Canva command.";
   if (!/[Zz]\s*$/.test(path)) return "Every path must be closed with Z.";
   const numbers = path.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) || [];
-  if (!numbers.length || numbers.some((number) => !Number.isFinite(Number(number)) || Math.abs(Number(number)) > 1e7)) return "A path contains an invalid coordinate.";
+  if (!numbers.length || numbers.some((number) => !Number.isFinite(Number(number)) || Math.abs(Number(number)) > MAX_COORDINATE)) return "A path contains an invalid coordinate.";
   return null;
 }
 
@@ -52,11 +68,14 @@ function readFileDataUrl(file: File): Promise<string> { return new Promise((reso
 function loadBrowserImage(src: string): Promise<HTMLImageElement> { return new Promise((resolve,reject)=>{ const im=new Image(); im.crossOrigin="anonymous"; im.onload=()=>resolve(im); im.onerror=()=>reject(new Error("Could not load image or mask")); im.src=src; }); }
 async function composeSmartMask(mockup: Mockup, file: File, zoom: number, panX: number, panY: number, rotation: number): Promise<string> {
   if(!mockup.maskUrl) throw new Error("Smart Mask URL is missing");
-  const [photo,mask]=await Promise.all([loadBrowserImage(await readFileDataUrl(file)),loadBrowserImage(mockup.maskUrl)]);
+  // Validate before decoding. These checks used to run after the file had
+  // already been read and decoded, so an oversized photo was fully loaded
+  // into memory before being rejected.
   if (!file.type.startsWith("image/")) throw new Error("Choose a valid image file");
-  if (file.size > 25 * 1024 * 1024) throw new Error("Photo is larger than 25 MB");
+  if (file.size > MAX_PHOTO_BYTES) throw new Error(`Photo is larger than ${Math.round(MAX_PHOTO_BYTES / (1024 * 1024))} MB`);
   const w=Math.max(2,Math.round(mockup.assetWidth||mockup.w)),h=Math.max(2,Math.round(mockup.assetHeight||mockup.h));
-  if (![w,h].every((value)=>Number.isFinite(value)&&value<=16384)) throw new Error("Smart Mask dimensions are too large");
+  if (![w,h].every((value)=>Number.isFinite(value)&&value<=MAX_DIMENSION)) throw new Error("Smart Mask dimensions are too large");
+  const [photo,mask]=await Promise.all([loadBrowserImage(await readFileDataUrl(file)),loadBrowserImage(mockup.maskUrl)]);
   const c=document.createElement("canvas"); c.width=w;c.height=h; const x=c.getContext("2d")!;
   const scale=Math.max(w/photo.naturalWidth,h/photo.naturalHeight)*zoom,dw=photo.naturalWidth*scale,dh=photo.naturalHeight*scale;
   x.save();x.translate(w/2+(panX/100)*w,h/2+(panY/100)*h);x.rotate(rotation*Math.PI/180);x.drawImage(photo,-dw/2,-dh/2,dw,dh);x.restore();
@@ -65,17 +84,35 @@ async function composeSmartMask(mockup: Mockup, file: File, zoom: number, panX: 
 
 function validateMockup(mockup: Mockup): string | null {
   if (!mockup.id || !mockup.name) return "Mockup id/name is missing.";
-  if (![mockup.w, mockup.h, mockup.assetWidth ?? mockup.w, mockup.assetHeight ?? mockup.h].every((value) => Number.isFinite(value) && value > 0 && value <= 16384)) return "Mockup dimensions must be finite and no larger than 16384px.";
+  if (![mockup.w, mockup.h, mockup.assetWidth ?? mockup.w, mockup.assetHeight ?? mockup.h].every((value) => Number.isFinite(value) && value > 0 && value <= MAX_DIMENSION)) return `Mockup dimensions must be finite and no larger than ${MAX_DIMENSION}px.`;
   if (mockup.mode === "smart-mask") { if (!/^https:\/\//i.test(mockup.maskUrl || "")) return "Smart Mask URL must be public HTTPS."; return null; }
   if (!/^https:\/\//i.test(mockup.overlayUrl || "")) return "Overlay URL must be public HTTPS.";
-  const exactMulti = mockup.mode === "silhouette" && (mockup.multiElement === true || mockup.paths.length > 1);
-  if (!mockup.paths.length || mockup.paths.length > (exactMulti ? 12 : 29)) return exactMulti ? "Exact multi supports 1–12 objects." : "A frame needs 1–29 opening paths.";
-  const overlayPath = mockup.mode === "silhouette" ? "" : `M 0 0 H ${mockup.w} V ${mockup.h} H 0 Z`;
-  const sizes = mockup.paths.map((path) => new TextEncoder().encode(path).length);
-  const bytes = new TextEncoder().encode([overlayPath, ...mockup.paths].join("")).length;
-  if (exactMulti ? sizes.some((size) => size > 2048) : bytes > 2048) return exactMulti ? `One object exceeds Canva's 2048-byte path limit.` : `Path data is ${bytes} bytes; Canva allows 2048.`;
+
+  const maxPaths = maxPathsFor(mockup);
+  if (!mockup.paths.length || mockup.paths.length > maxPaths) {
+    return isExactMulti(mockup)
+      ? `Exact multi supports 1–${maxPaths} objects.`
+      : `A frame needs 1–${maxPaths} opening paths.`;
+  }
+
+  // One budget rule for every layer. Validating against Canva's raw 2048
+  // ceiling here used to accept frames the Worker rejected at 1980.
+  const budget = measurePathBudget(mockup);
+  if (!budget.ok) return budget.reason;
+
   for (const path of mockup.paths) { const error = validateCanvaPath(path); if (error) return error; }
   return null;
+}
+
+/**
+ * Canva shape paths allow exactly one M, so an enclosed hole cannot be
+ * subtracted from its own contour. The Studio bridges what it can; whatever
+ * is left is reported here so the insert never looks silently wrong.
+ */
+function holeSuffix(mockup: Mockup): string {
+  const holes = mockup.unbridgedHoles ?? 0;
+  if (holes <= 0) return "";
+  return ` ${holes} enclosed hole${holes > 1 ? "s" : ""} could not be cut natively and inserted filled; republish as Smart Mask for an exact cut-out.`;
 }
 
 const inlineStyles = `
@@ -130,6 +167,7 @@ const inlineStyles = `
 [data-frameforge-app] .iconButton { min-height:32px; padding:4px; border-color:#e6e5e3; background:#fff; color:#555; }
 [data-frameforge-app] .iconButton.danger { color:#a82424; }
 [data-frameforge-app] .moveSelect { width:100%; margin-top:7px; padding:5px 7px; border:1px solid #d9d7d3; border-radius:6px; background:#fff; font:11px Arial,sans-serif; }
+[data-frameforge-app] .holeWarning { margin-top:5px; padding:5px 7px; border-radius:6px; background:#fbebde; color:#7a4a1d; font-size:11px; line-height:1.35; }
 [data-frameforge-app] .emptyState { padding:22px 12px; border:1px dashed #d9d7d3; border-radius:10px; color:#7d7a75; font-size:13px; text-align:center; }
 [data-frameforge-app] { gap:12px; padding:14px 12px 20px; color:#0d1216; font-family:Arial,sans-serif; background:#fff; }
 [data-frameforge-app] .nativeHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -328,7 +366,7 @@ export function App() {
           for (const d of mockup.paths) {
             await addElementAtPoint({ type: "shape", paths: [{ d, fill: { dropTarget: true, asset: { type: "image", ref: starter.ref } } }], viewBox: { top: 0, left: 0, width: mockup.w, height: mockup.h } });
           }
-          setNotice({ tone: "positive", text: `${mockup.name} added as ${mockup.paths.length} aligned native Canva frames using one starter photo.` });
+          setNotice({ tone: "positive", text: `${mockup.name} added as ${mockup.paths.length} aligned native Canva frames using one starter photo.${holeSuffix(mockup)}` });
           return;
         }
         shapePaths = mockup.paths.map((d) => ({ d, fill: { dropTarget: true, asset: { type: "image", ref: starter.ref } } }));
@@ -340,7 +378,7 @@ export function App() {
       }
       await addElementAtPoint({ type: "shape", paths: shapePaths, viewBox: { top: 0, left: 0, width: mockup.w, height: mockup.h } });
 
-      setNotice({ tone: "positive", text: `${mockup.name} added as one native Canva frame.` });
+      setNotice({ tone: "positive", text: `${mockup.name} added as one native Canva frame.${holeSuffix(mockup)}` });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setNotice({ tone: "critical", text: `Could not add mockup: ${message}` });
@@ -431,7 +469,12 @@ export function App() {
             </div>
             <div className="details">
               <div className="name">{mockup.name}</div>
-              <div className="meta">{mockup.w} × {mockup.h}px · {mockup.mode === "smart-mask" ? "exact Smart Mask" : mockup.mode === "silhouette" ? ((mockup.multiElement || mockup.paths.length > 1) ? `exact multi · ${mockup.paths.length} objects` : "silhouette") : "overlay"}</div>
+              <div className="meta">{mockup.w} × {mockup.h}px · {mockup.mode === "smart-mask" ? "exact Smart Mask" : mockup.mode === "silhouette" ? (isExactMulti(mockup) ? `exact multi · ${mockup.paths.length} objects` : "silhouette") : "overlay"}</div>
+              {(mockup.unbridgedHoles ?? 0) > 0 && (
+                <div className="holeWarning" title="Canva native paths allow exactly one M, so a fully enclosed hole cannot be cut out. Republish this frame as a Smart Mask to keep the holes.">
+                  ⚠ {mockup.unbridgedHoles} enclosed hole{(mockup.unbridgedHoles ?? 0) > 1 ? "s" : ""} will insert filled — use Smart Mask for an exact cut-out
+                </div>
+              )}
               <select className="moveSelect" aria-label={`Move ${mockup.name} to folder`} value={mockup.folderId || ""} disabled={busy !== null} onChange={(event) => void moveMockup(mockup, event.currentTarget.value)}><option value="">Uncategorized</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select>
               {mockup.mode === "smart-mask" && <input className="photoPick" aria-label={`Photo for ${mockup.name}`} type="file" accept="image/*" onChange={(event) => { const file = event.currentTarget.files?.[0] ?? null; setSmartFiles((current) => ({ ...current, [mockup.id]: file })); }}/>} 
             </div>
