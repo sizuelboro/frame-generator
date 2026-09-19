@@ -28,7 +28,8 @@ function refreshProps() {
         <h2>How it works</h2>
         <div class="note">
           <b>1.</b> Add your mockup as <b>Mockup overlay</b> (screen area must be transparent).<br>
-          <b>2.</b> Draw a <b>Rect</b> or <b>Perspective</b> frame over the screen.<br>
+          <b>2.</b> Draw a <b>Rect</b> or <b>Perspective</b> frame over each screen.<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<b>Pick opening</b> finds every transparent opening and frames them all.<br>
           <b>3.</b> Move the frame <b>below</b> the overlay with the ↓ order buttons.<br>
           <b>4.</b> Set an image in the frame, then drag / scroll to fit.<br>
           <b>5.</b> <b>Save as mockup</b> to reuse it later with any image.

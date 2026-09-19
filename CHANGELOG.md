@@ -13,6 +13,61 @@ Reference material that is not version history lives in `docs/`.
 
 ---
 
+## 7.5.0
+
+Multi-opening auto-detect. A mockup photo with several openings - a room shot
+with three posters, a shelf of frames, a phone next to a tablet - now becomes
+one frame per opening instead of one frame over the largest one.
+
+### Fixed
+
+- **Every opening but the largest was silently discarded.** `_openingMask()`
+  ran `_largest(...)` over the interior background regions and threw the rest
+  away, so a three-poster room mockup published a single drop target over the
+  biggest poster. Nothing in the UI said so: no warning, no count, no hint
+  that two openings had been dropped. `_openingMasks()` now keeps every
+  region that passes an area filter, and `detectOpening()` returns them as
+  `openings[]` with a `skipped` count for the regions it rejected.
+- **Several flat-colour screens collapsed into one giant quad.** The corner
+  trackers in `autoScreen()` are global, so three green rectangles produced a
+  single quad spanning all three - a frame covering the gaps between them.
+  The cleared pixels are now labelled into connected components and each
+  screen gets its own quad, exposed as `quads[]`.
+- **Bulk 100 could not produce multi-opening frames at all.** The overlay
+  branch of `bulkPrepareOne()` used `r.pts` only. It now maps every detected
+  opening to its own drop-target path, checks the count against
+  `MAX_PATHS_SINGLE`, measures the combined budget, and names the detection
+  `opening x3` so the run report shows what was found.
+
+### Changed
+
+- `Pick opening` and `Auto screen` create one frame per opening, named
+  `Opening Frame 1..n` / `Screen Frame 1..n`, with the overlay kept on top.
+  A single opening keeps its old name and geometry exactly.
+- Frames are created in reading order - top row left to right - not in the
+  largest-first order the detector returns, so `Opening Frame 1` is the
+  top-left opening. Rows are grouped with a tolerance of half the shortest
+  opening, so an uneven gallery wall still reads row by row.
+- Openings smaller than 0.3% of the image are treated as dust and skipped,
+  capped at 12 openings per mockup. Skipped regions are reported in the
+  toast and in the bulk detection label rather than being hidden.
+- Near-rectangular openings are emitted as clean 4-point rect frames; the
+  rest are traced, matching how the primary opening was already handled.
+- The morphology close is computed once in `_holeMask()` and shared. A
+  single-opening mockup costs the same four morphology passes it always did;
+  each extra opening adds two. Proved by counting passes in the test suite.
+
+### Notes
+
+- Openings share one element and therefore one combined 1980-byte budget.
+  Three rect openings measure about 190 bytes in total, so the practical
+  ceiling is the 29-path limit, not the budget.
+- Canva clips a dropped image to the path but cannot keystone it. Openings
+  photographed at a strong side angle still look flat inside the frame; that
+  is a platform limit, not a detection one.
+
+---
+
 ## 7.4.0
 
 Consistency, hardening and maintainability pass. No change to the creator

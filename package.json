@@ -1,6 +1,6 @@
 {
   "name": "frameforge",
-  "version": "7.4.0",
+  "version": "7.5.0",
   "private": true,
   "type": "module",
   "description": "FrameForge - Studio, Cloudflare Worker library and Canva app for native Canva mockup frames",

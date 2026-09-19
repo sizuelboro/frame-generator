@@ -51,6 +51,10 @@ async function autoScreen(L, tol) {
   const hard = tol * tol * 3;
   const soft = hard * 3.2;
   let TL = null, TR = null, BR = null, BL = null, cleared = 0;
+  /* Remember which pixels were fully knocked out so separate screens can be
+     told apart below. The corner trackers stay global so a single-screen
+     mockup keeps returning exactly the quad it always did. */
+  const clearedMask = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
@@ -63,6 +67,7 @@ async function autoScreen(L, tol) {
         continue;
       }
       d[i + 3] = 0; cleared++;
+      clearedMask[y * w + x] = 1;
       const s = x + y, f = x - y;
       if (!TL || s < TL.k) TL = { x, y, k: s };
       if (!BR || s > BR.k) BR = { x, y, k: s };
@@ -74,14 +79,50 @@ async function autoScreen(L, tol) {
   ctx.putImageData(im, 0, 0);
 
   const sx = L.w / w, sy = L.h / h;
-  const pts = [TL, TR, BR, BL].map(p => ({ x: L.x + p.x * sx, y: L.y + p.y * sy }));
   const span = Math.max(L.w, L.h);
-  const axis = Math.abs(pts[0].y - pts[1].y) < span * 0.012 &&
-               Math.abs(pts[2].y - pts[3].y) < span * 0.012 &&
-               Math.abs(pts[0].x - pts[3].x) < span * 0.012 &&
-               Math.abs(pts[1].x - pts[2].x) < span * 0.012;
+  const toDoc = corners => corners.map(p => ({ x: L.x + p.x * sx, y: L.y + p.y * sy }));
+  const isAxisQuad = q => Math.abs(q[0].y - q[1].y) < span * 0.012 &&
+                          Math.abs(q[2].y - q[3].y) < span * 0.012 &&
+                          Math.abs(q[0].x - q[3].x) < span * 0.012 &&
+                          Math.abs(q[1].x - q[2].x) < span * 0.012;
 
-  return { src: c.toDataURL('image/png'), pts, axis, cleared, colour: t };
+  const pts = toDoc([TL, TR, BR, BL]);
+  const axis = isAxisQuad(pts);
+
+  /* Several separate screens in one photo (a 3-poster room shot) used to
+     collapse into one giant quad spanning all of them, because the corner
+     trackers above are global. Label the cleared pixels and derive a quad
+     per screen. `pts` / `axis` are left untouched, and callers only switch
+     to `quads` when there is genuinely more than one screen. */
+  const quads = [];
+  let skipped = 0;
+  try {
+    const parts = _components(clearedMask, w, h);
+    const minSize = Math.max(24, Math.round(w * h * FF_MIN_OPENING_AREA_RATIO));
+    for (let n = 0; n < parts.items.length; n++) {
+      const box = parts.items[n];
+      if (box.size < minSize || quads.length >= FF_MAX_OPENINGS) { skipped++; continue }
+      let a = null, b = null, cc = null, e = null;
+      for (let y = box.minY; y <= box.maxY; y++) {
+        for (let x = box.minX; x <= box.maxX; x++) {
+          if (parts.labels[y * w + x] !== box.id) continue;
+          const s = x + y, f = x - y;
+          if (!a || s < a.k) a = { x, y, k: s };
+          if (!cc || s > cc.k) cc = { x, y, k: s };
+          if (!b || f > b.k) b = { x, y, k: f };
+          if (!e || f < e.k) e = { x, y, k: f };
+        }
+      }
+      if (!a || !b || !cc || !e) { skipped++; continue }
+      const quad = toDoc([a, b, cc, e]);
+      quads.push({ pts: quad, axis: isAxisQuad(quad), size: box.size });
+    }
+  } catch (error) {
+    quads.length = 0;
+    skipped = 0;
+  }
+
+  return { src: c.toDataURL('image/png'), pts, axis, quads, skipped, cleared, colour: t };
 }
 
 async function autoScreenApply(L, tol) {
@@ -93,21 +134,33 @@ async function autoScreenApply(L, tol) {
   L.locked = true;
   if (!/overlay|mockup/i.test(L.name || '')) L.name = (L.name || 'Mockup') + ' Overlay';
 
-  const fr = {
-    id: uid(), type: 'frame', name: 'Screen Frame',
-    frameType: res.axis ? 'rect' : 'perspective',
-    visible: true, locked: false, opacity: 1,
-    points: res.pts.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
-    content: null
-  };
+  /* One quad per screen. With a single screen this is res.pts / res.axis,
+     i.e. exactly the geometry this function has always produced. */
+  let regions = [{ pts: res.pts, axis: res.axis }];
+  if (res.quads && res.quads.length > 1) {
+    const ordered = _readingOrder(res.quads.map(q => q.pts));
+    regions = ordered.map(pts => ({ pts, axis: res.quads.find(q => q.pts === pts).axis }));
+  }
 
   doc.layers = doc.layers.filter(x => x.id !== L.id);
-  doc.layers.push(fr);   // frame below
-  doc.layers.push(L);    // mockup on top
-  sel = fr.id;
+  const frames = regions.map((region, index) => ({
+    id: uid(), type: 'frame',
+    name: regions.length > 1 ? 'Screen Frame ' + (index + 1) : 'Screen Frame',
+    frameType: region.axis ? 'rect' : 'perspective',
+    visible: true, locked: false, opacity: 1,
+    points: region.pts.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
+    content: null
+  }));
+  frames.forEach(fr => doc.layers.push(fr));   // frames below
+  doc.layers.push(L);                          // mockup on top
+  sel = frames[0].id;
   contentCache.clear(); imgCache.delete(res.src);
   sync();
-  toast('Screen punched out · ' + (res.axis ? 'rect' : '4-point') + ' frame created · drop an image in');
+
+  const skipNote = res.skipped > 0 ? ' · ' + res.skipped + ' tiny region' + (res.skipped === 1 ? '' : 's') + ' skipped' : '';
+  toast(regions.length > 1
+    ? 'Screens punched out · ' + regions.length + ' frames created' + skipNote + ' · drop an image in each'
+    : 'Screen punched out · ' + (regions[0].axis ? 'rect' : '4-point') + ' frame created' + skipNote + ' · drop an image in');
   return true;
 }
 
@@ -397,7 +450,10 @@ function _multiObjectPath(raw,L,w,h,allowReduce=true,byteLimit=FF_LIMITS.PATH_BU
 }
 
 /* artwork mask -> largest enclosed opening, robust to texture and thin cuts */
-function _openingMask(isBg, w, h) {
+/* Interior background regions of the artwork, before any region is picked.
+   Extracted so the single-opening and multi-opening paths can share one
+   (fairly expensive) morphology pass instead of running it twice. */
+function _holeMask(isBg, w, h) {
   const art = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) art[i] = isBg(i) ? 0 : 1;
   const r = Math.max(2, Math.round(Math.max(w, h) / 160));
@@ -406,6 +462,11 @@ function _openingMask(isBg, w, h) {
   const filled = _fillHoles(closed, w, h);
   const hole = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) hole[i] = (filled[i] && !closed[i]) ? 1 : 0;
+  return { hole, r };
+}
+
+function _openingMask(isBg, w, h, pre = null) {
+  const { hole, r } = pre || _holeMask(isBg, w, h);
   let best = _largest(hole, w, h);
   let mask = _fillHoles(best.mask, w, h);
   const s = Math.max(1, Math.round(r / 2));
@@ -414,6 +475,94 @@ function _openingMask(isBg, w, h) {
   let size = 0;
   for (let i = 0; i < w * h; i++) if (mask[i]) size++;
   return { mask, size };
+}
+
+/* --- multi-opening tuning -------------------------------------------------
+   A qualifying opening must cover at least this share of the mockup image.
+   Below it we are looking at dust, JPEG noise, a watermark gap or the 1px
+   seam around a badly cut border - never a real drop target. Regions that
+   fail the test are counted and reported, never silently dropped. */
+const FF_MIN_OPENING_AREA_RATIO = 0.003;   // 0.3% of the image
+const FF_MAX_OPENINGS = 12;                // sanity cap on runaway detection
+
+/* Every interior background region, not just the biggest one.
+   _openingMask() above keeps only `_largest(...)`, which is why a room
+   mockup with three posters used to yield one frame over the largest poster
+   while the other two were discarded without any warning.
+
+   items[0] is always the largest region, so it matches what _openingMask()
+   returns and the caller can keep its original treatment. It is exempt from
+   the area filter for that reason; every later region must pass. Each mask
+   goes through the same fill-holes + open cycle as _openingMask(), so a lone
+   opening traces to exactly the same geometry as before. */
+function _openingMasks(isBg, w, h, opts = {}) {
+  const minRatio = opts.minRatio == null ? FF_MIN_OPENING_AREA_RATIO : opts.minRatio;
+  const maxCount = opts.maxCount == null ? FF_MAX_OPENINGS : opts.maxCount;
+  /* detectOpening() already has geometry for the largest region and only
+     needs its bounding box here, so it opts out of that mask and pays no
+     morphology at all for a single-opening mockup. */
+  const primaryMask = opts.primaryMask !== false;
+  const { hole, r } = opts.pre || _holeMask(isBg, w, h);
+  const parts = _components(hole, w, h);        // sorted largest first
+  const minSize = Math.max(24, Math.round(w * h * minRatio));
+  const s = Math.max(1, Math.round(r / 2));
+  const items = [];
+  let skipped = 0;
+
+  for (let n = 0; n < parts.items.length; n++) {
+    const box = parts.items[n];
+    if (n > 0 && (box.size < minSize || items.length >= maxCount)) { skipped++; continue }
+    if (n === 0 && !primaryMask) { items.push({ mask: null, size: box.size, box }); continue }
+    let mask = _fillHoles(_componentMask(parts.labels, box.id), w, h);
+    mask = _morph(mask, w, h, s, true);
+    mask = _morph(mask, w, h, s, false);
+    let size = 0;
+    for (let i = 0; i < w * h; i++) if (mask[i]) size++;
+    items.push({ mask, size, box });
+  }
+  return { items, skipped };
+}
+
+/* Detection returns regions largest first, which is meaningless to a person
+   looking at the mockup. Frames are created in reading order instead, so
+   "Opening Frame 1" is the top-left one. Rows are grouped with a tolerance
+   of half the shortest opening so a slightly uneven gallery wall still reads
+   left to right rather than zig-zagging. */
+function _readingOrder(regions) {
+  const boxed = regions.map((pts, index) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of pts) {
+      const px = p.x == null ? p[0] : p.x, py = p.y == null ? p[1] : p.y;
+      if (px < x0) x0 = px;
+      if (px > x1) x1 = px;
+      if (py < y0) y0 = py;
+      if (py > y1) y1 = py;
+    }
+    return { pts, index, x0, y0, h: y1 - y0 };
+  });
+  const shortest = Math.min(...boxed.map(b => b.h).filter(h => h > 0));
+  const band = Math.max(1, (Number.isFinite(shortest) ? shortest : 1) * 0.5);
+  boxed.sort((a, b) => {
+    const rowA = Math.round(a.y0 / band), rowB = Math.round(b.y0 / band);
+    if (rowA !== rowB) return rowA - rowB;
+    if (a.x0 !== b.x0) return a.x0 - b.x0;
+    return a.index - b.index;
+  });
+  return boxed.map(b => b.pts);
+}
+
+/* Outline one opening region: a near-rectangular poster becomes a clean
+   4-point quad, anything else is traced. Mirrors the rectangularity test
+   detectOpening() applies to the primary opening. */
+async function _openingLoop(item, w, h) {
+  const box = item.box;
+  const boxArea = (box.maxX - box.minX + 1) * (box.maxY - box.minY + 1);
+  const rectangularity = boxArea ? item.size / boxArea : 0;
+  if (rectangularity >= 0.82) {
+    return [[box.minX, box.minY], [box.maxX, box.minY], [box.maxX, box.maxY], [box.minX, box.maxY]];
+  }
+  const loop = await _maskOutline(item.mask, w, h);
+  return loop && loop.length >= 3 ? loop : null;
 }
 
 /* All contours, including tiny inner white cut-outs. */
@@ -702,13 +851,15 @@ async function detectOpening(L) {
   const d = im.data;
 
   /* --- a) real alpha opening --- */
-  let comp = _openingMask(i => d[i * 4 + 3] < 128, w, h);
+  let isBg = i => d[i * 4 + 3] < 128;
+  let holeMask = _holeMask(isBg, w, h);
+  let comp = _openingMask(isBg, w, h, holeMask);
   let mode = 'alpha', levels = null;
   if (comp.size < w * h * 0.008) {
     /* --- b) flattened checkerboard / flat grey background --- */
     levels = _checkerBg(d, w, h);
     if (!levels) return null;
-    const isBg = i => {
+    isBg = i => {
       const j = i * 4;
       if (d[j + 3] < 128) return true;
       const r = d[j], g = d[j + 1], b = d[j + 2];
@@ -716,7 +867,8 @@ async function detectOpening(L) {
       const v = (r + g + b) / 3;
       return levels.some(L2 => Math.abs(v - L2) <= 14);
     };
-    comp = _openingMask(isBg, w, h);
+    holeMask = _holeMask(isBg, w, h);
+    comp = _openingMask(isBg, w, h, holeMask);
     if (comp.size < w * h * 0.008) return null;
     mode = 'checker';
   }
@@ -758,11 +910,36 @@ async function detectOpening(L) {
     src = full.toDataURL('image/png');
   }
 
+  /* --- every other interior opening (multi-window mockups) ---------------
+     The primary opening above keeps its original rect / bridged-outline
+     treatment, so a single-opening mockup produces byte-identical geometry
+     to before this block existed. Any further qualifying region is traced
+     here instead of being thrown away by _largest(). */
+  const extraLoops = [];
+  let skippedOpenings = 0;
+  try {
+    const found = _openingMasks(isBg, w, h, { pre: holeMask, primaryMask: false });
+    skippedOpenings = found.skipped;
+    for (let n = 1; n < found.items.length; n++) {
+      const loop = await _openingLoop(found.items[n], w, h);
+      if (loop) extraLoops.push(loop);
+    }
+  } catch (error) {
+    /* Multi-opening detection is additive. If it ever fails we still ship
+       the primary opening rather than losing the whole mockup. */
+    extraLoops.length = 0;
+    skippedOpenings = 0;
+  }
+
   const sx = L.w / w, sy = L.h / h;
+  const toDoc = loop => loop.map(p => ({ x: +(L.x + p[0] * sx).toFixed(1), y: +(L.y + p[1] * sy).toFixed(1) }));
+  const primary = toDoc(openingPts);
   return {
     mode,
     src,
-    pts: openingPts.map(p => ({ x: +(L.x + p[0] * sx).toFixed(1), y: +(L.y + p[1] * sy).toFixed(1) })),
+    pts: primary,
+    openings: [primary, ...extraLoops.map(toDoc)],
+    skipped: skippedOpenings,
     coverage: comp.size / (w * h)
   };
 }
@@ -776,20 +953,30 @@ async function autoHoleApply(L) {
   L.locked = true;
   if (!/overlay|mockup/i.test(L.name || '')) L.name = (L.name || 'Artwork') + ' Overlay';
 
-  const pts = res.pts;
-  const fr = {
-    id: uid(), type: 'frame', name: 'Opening Frame',
+  /* One frame per detected opening. A single-opening mockup takes exactly
+     the same route as before; a 3-poster room mockup now gets 3 aligned
+     frames instead of one frame over the biggest poster. */
+  let regions = (res.openings && res.openings.length ? res.openings : [res.pts]).filter(p => p && p.length >= 3);
+  if (!regions.length) return false;
+  if (regions.length > 1) regions = _readingOrder(regions);
+
+  doc.layers = doc.layers.filter(x => x.id !== L.id);
+  const frames = regions.map((pts, index) => ({
+    id: uid(), type: 'frame',
+    name: regions.length > 1 ? 'Opening Frame ' + (index + 1) : 'Opening Frame',
     frameType: pts.length === 4 ? (isAxisRect(pts) ? 'rect' : 'perspective') : 'polygon',
     visible: true, locked: false, opacity: 1,
     points: pts, content: null
-  };
-
-  doc.layers = doc.layers.filter(x => x.id !== L.id);
-  doc.layers.push(fr);  // frame below
-  doc.layers.push(L);   // artwork on top
-  sel = fr.id;
+  }));
+  frames.forEach(fr => doc.layers.push(fr));   // frames below
+  doc.layers.push(L);                          // artwork on top
+  sel = frames[0].id;
   contentCache.clear();
   sync();
-  toast('Opening traced (' + res.mode + ') \u00b7 ' + pts.length + '-point frame created \u00b7 drop an image in');
+
+  const skipNote = res.skipped > 0 ? ' \u00b7 ' + res.skipped + ' tiny region' + (res.skipped === 1 ? '' : 's') + ' skipped' : '';
+  toast(regions.length > 1
+    ? 'Openings traced (' + res.mode + ') \u00b7 ' + regions.length + ' openings \u00b7 ' + regions.length + ' frames created' + skipNote + ' \u00b7 drop an image in each'
+    : 'Opening traced (' + res.mode + ') \u00b7 ' + regions[0].length + '-point frame created' + skipNote + ' \u00b7 drop an image in');
   return true;
 }

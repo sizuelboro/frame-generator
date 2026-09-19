@@ -616,6 +616,266 @@ async function testExistingFeatures() {
   chk('no runtime errors after feature pass', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
 }
 
+/* ----------------------- 6. multi-opening detection -----------------------
+   A room mockup with three posters used to produce a single frame over the
+   largest poster: _openingMask() keeps only `_largest(...)`. These tests pin
+   down the new behaviour and, just as importantly, that a single opening is
+   unchanged. */
+
+/* A solid card with rectangular windows knocked out of it. */
+function cardWithWindows(w, h, windows) {
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  var x = c.getContext('2d');
+  x.fillStyle = '#d8cfc4';
+  x.fillRect(0, 0, w, h);
+  x.globalCompositeOperation = 'destination-out';
+  for (var i = 0; i < windows.length; i++) {
+    var r = windows[i];
+    x.fillRect(r[0], r[1], r[2], r[3]);
+  }
+  return c.toDataURL('image/png');
+}
+/* A photo with flat-green screens, for the autoScreen() path. */
+function cardWithScreens(w, h, screens) {
+  var c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  var x = c.getContext('2d');
+  x.fillStyle = '#8a8a8a';
+  x.fillRect(0, 0, w, h);
+  x.fillStyle = '#12c412';
+  for (var i = 0; i < screens.length; i++) {
+    var r = screens[i];
+    x.fillRect(r[0], r[1], r[2], r[3]);
+  }
+  return c.toDataURL('image/png');
+}
+function overlayLayerFor(src, size) {
+  return {
+    id: 'mo-' + Math.random().toString(36).slice(2), type: 'image', name: 'Mockup',
+    src: src, x: 0, y: 0, w: size, h: size, rotation: 0,
+    visible: true, locked: false, opacity: 1,
+  };
+}
+function centreOf(rect) { return [rect[0] + rect[2] / 2, rect[1] + rect[3] / 2]; }
+/* How many of the published paths cover this point? */
+function coverCount(ds, x, y) {
+  var n = 0;
+  for (var i = 0; i < ds.length; i++) {
+    if (probeCtx.isPointInPath(new Path2D(ds[i]), x, y, 'nonzero')) n++;
+  }
+  return n;
+}
+
+async function testMultiOpening() {
+  section('6. multi-opening auto-detect');
+
+  var SIZE = 400;
+
+  /* --- a) one opening: nothing may change ---------------------------- */
+  var oneWindow = [140, 120, 120, 160];
+  var single = await detectOpening(overlayLayerFor(cardWithWindows(SIZE, SIZE, [oneWindow]), SIZE));
+  chk('single opening still detected', !!single);
+  if (single) {
+    chk('single opening exposes exactly one region', single.openings.length === 1, 'openings=' + single.openings.length);
+    chk('openings[0] is the same geometry as pts',
+      JSON.stringify(single.openings[0]) === JSON.stringify(single.pts));
+    chk('single opening reports nothing skipped', single.skipped === 0, 'skipped=' + single.skipped);
+    var box = single.pts.reduce(function (a, p) {
+      return { x0: Math.min(a.x0, p.x), y0: Math.min(a.y0, p.y), x1: Math.max(a.x1, p.x), y1: Math.max(a.y1, p.y) };
+    }, { x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9 });
+    chk('single opening lands on the real window',
+      Math.abs(box.x0 - oneWindow[0]) <= 6 && Math.abs(box.y0 - oneWindow[1]) <= 6 &&
+      Math.abs(box.x1 - (oneWindow[0] + oneWindow[2])) <= 6 && Math.abs(box.y1 - (oneWindow[1] + oneWindow[3])) <= 6,
+      JSON.stringify(box));
+  }
+
+  /* --- b) three posters: all three must survive ---------------------- */
+  var three = [[40, 90, 90, 200], [155, 90, 90, 200], [270, 90, 90, 200]];
+  var multi = await detectOpening(overlayLayerFor(cardWithWindows(SIZE, SIZE, three), SIZE));
+  chk('three-poster mockup detected', !!multi);
+  if (multi) {
+    chk('all three openings detected', multi.openings.length === 3, 'openings=' + multi.openings.length);
+    chk('pts still points at one opening (back-compat)', Array.isArray(multi.pts) && multi.pts.length >= 3);
+    var ds = multi.openings.map(function (pts) { return framePath(pts, false); });
+    var hits = three.map(function (r) { var c = centreOf(r); return coverCount(ds, c[0], c[1]); });
+    chk('each poster centre is covered by exactly one frame', hits.join(',') === '1,1,1', hits.join(','));
+    chk('the card between the posters stays solid', coverCount(ds, 130, 190) === 0);
+    chk('every opening is its own closed path',
+      ds.every(function (d) { return /^M /.test(d) && /Z\s*$/.test(d.trim()) && (d.match(/M /g) || []).length === 1; }));
+    var bytes = new TextEncoder().encode(['M 0 0 H 1200 V 800 H 0 Z'].concat(ds).join('')).length;
+    chk('three openings fit the combined path budget', bytes <= FF_PATH_BUDGET, bytes + '/' + FF_PATH_BUDGET);
+  }
+
+  /* --- c) dust must be filtered, and counted -------------------------
+     Specks under a few pixels never reach the filter: the dilate/erode
+     close inside _openingMasks() seals them first, so there is nothing to
+     report. These specks are deliberately big enough to survive that and
+     land on the 0.3% area filter, which must count them. */
+  var withDust = await detectOpening(overlayLayerFor(
+    cardWithWindows(SIZE, SIZE, [[120, 100, 160, 200], [20, 20, 16, 16], [356, 30, 18, 18]]), SIZE));
+  chk('mockup with dust specks detected', !!withDust);
+  if (withDust) {
+    chk('dust specks do not become frames', withDust.openings.length === 1, 'openings=' + withDust.openings.length);
+    chk('skipped regions are reported honestly, not hidden', withDust.skipped >= 2, 'skipped=' + withDust.skipped);
+    chk('sub-pixel specks are closed before the filter, so nothing is over-reported',
+      (await detectOpening(overlayLayerFor(
+        cardWithWindows(SIZE, SIZE, [[120, 100, 160, 200], [20, 20, 4, 4]]), SIZE))).skipped === 0);
+  }
+
+  /* --- d) autoScreen: one screen unchanged, three screens split ------ */
+  var oneScreen = await autoScreen(overlayLayerFor(cardWithScreens(SIZE, SIZE, [[140, 120, 120, 160]]), SIZE), 80);
+  chk('single flat-colour screen still detected', !!oneScreen);
+  if (oneScreen) {
+    chk('single screen yields one quad', oneScreen.quads.length === 1, 'quads=' + oneScreen.quads.length);
+    chk('single screen quad matches the legacy pts',
+      JSON.stringify(oneScreen.quads[0].pts) === JSON.stringify(oneScreen.pts));
+  }
+  var threeScreens = await autoScreen(overlayLayerFor(
+    cardWithScreens(SIZE, SIZE, [[30, 90, 90, 200], [155, 90, 90, 200], [280, 90, 90, 200]]), SIZE), 80);
+  chk('three flat-colour screens detected', !!threeScreens);
+  if (threeScreens) {
+    chk('three screens yield three quads', threeScreens.quads.length === 3, 'quads=' + threeScreens.quads.length);
+    var quadDs = threeScreens.quads.map(function (q) { return framePath(q.pts, false); });
+    chk('each screen centre is covered by exactly one quad',
+      [[75, 190], [200, 190], [325, 190]].every(function (p) { return coverCount(quadDs, p[0], p[1]) === 1; }));
+    chk('the legacy single quad would have spanned all three screens (the old bug)',
+      coverCount([framePath(threeScreens.pts, false)], 130, 190) === 1);
+    chk('per-screen quads leave the gap between screens empty', coverCount(quadDs, 130, 190) === 0);
+  }
+
+  /* --- e) cost: Bulk 100 runs detection once per file -----------------
+     Chromium runs this suite on a virtual clock, so wall-clock timing is
+     meaningless here. Count the morphology passes instead - that is where
+     detection spends its time. _holeMask() is computed once and shared by
+     the single- and multi-opening paths; without that sharing every mockup
+     would pay for two full dilate/erode closes. */
+  var realMorph = _morph, morphCalls = 0;
+  _morph = function () { morphCalls++; return realMorph.apply(null, arguments); };
+  try {
+    morphCalls = 0;
+    await detectOpening(overlayLayerFor(cardWithWindows(SIZE, SIZE, [oneWindow]), SIZE));
+    var singleCalls = morphCalls;
+    morphCalls = 0;
+    var timed = await detectOpening(overlayLayerFor(cardWithWindows(SIZE, SIZE, three), SIZE));
+    var multiCalls = morphCalls;
+    info('morphology passes: ' + singleCalls + ' for one opening, ' + multiCalls + ' for three');
+    chk('a single-opening mockup costs exactly what it always did',
+      singleCalls === 4, 'expected 4 (2 close + 2 open), got ' + singleCalls);
+    chk('three openings cost two extra opens per extra region',
+      multiCalls === singleCalls + 4, singleCalls + ' -> ' + multiCalls);
+    chk('per-file cost grows linearly, not quadratically, with openings',
+      multiCalls < singleCalls * 3, singleCalls + ' -> ' + multiCalls);
+    chk('1000px three-poster mockup still detected', !!timed && timed.openings.length === 3,
+      timed ? 'openings=' + timed.openings.length : 'null');
+  } finally {
+    _morph = realMorph;
+  }
+
+  chk('no runtime errors after multi-opening pass', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
+}
+
+/* --------------- 7. multi-opening through the real pipelines --------------- */
+async function dataUrlToFile(dataUrl, name) {
+  var blob = await (await fetch(dataUrl)).blob();
+  return new File([blob], name, { type: 'image/png' });
+}
+
+async function testMultiOpeningPipelines() {
+  section('7. multi-opening through Studio + bulk');
+
+  var SIZE = 400;
+  var three = [[40, 90, 90, 200], [155, 90, 90, 200], [270, 90, 90, 200]];
+  var src = cardWithWindows(SIZE, SIZE, three);
+
+  /* --- Studio: Pick opening creates one frame per opening ------------ */
+  doc.layers = [];
+  var L = overlayLayerFor(src, SIZE);
+  doc.layers.push(L);
+  var applied = await autoHoleApply(L);
+  chk('autoHoleApply succeeded', applied === true);
+  var frames = doc.layers.filter(function (l) { return l.type === 'frame'; });
+  chk('Studio created three frames', frames.length === 3, 'frames=' + frames.length);
+  chk('frames sit below the overlay', doc.layers[doc.layers.length - 1].type === 'overlay');
+  chk('each frame is independently selectable', new Set(frames.map(function (f) { return f.id; })).size === 3);
+  chk('frames are named per opening', frames.every(function (f, i) { return f.name === 'Opening Frame ' + (i + 1); }),
+    frames.map(function (f) { return f.name; }).join(' | '));
+  chk('frames are created in reading order, left to right',
+    frames.every(function (f, i) {
+      return i === 0 || Math.min.apply(null, f.points.map(function (p) { return p.x; }))
+        > Math.min.apply(null, frames[i - 1].points.map(function (p) { return p.x; }));
+    }),
+    frames.map(function (f) { return Math.round(Math.min.apply(null, f.points.map(function (p) { return p.x; }))); }).join(' < '));
+  chk('rectangular posters trace as clean 4-point frames',
+    frames.every(function (f) { return f.points.length === 4 && f.frameType === 'rect'; }),
+    frames.map(function (f) { return f.points.length + ':' + f.frameType; }).join(' | '));
+
+  /* --- a 2x2 gallery wall reads top row first ------------------------ */
+  doc.layers = [];
+  var grid = [[60, 40, 120, 120], [220, 40, 120, 120], [60, 220, 120, 120], [220, 220, 120, 120]];
+  var Lg = overlayLayerFor(cardWithWindows(SIZE, SIZE, grid), SIZE);
+  doc.layers.push(Lg);
+  await autoHoleApply(Lg);
+  var gridFrames = doc.layers.filter(function (l) { return l.type === 'frame'; });
+  chk('2x2 gallery wall gives four frames', gridFrames.length === 4, 'frames=' + gridFrames.length);
+  if (gridFrames.length === 4) {
+    var order = gridFrames.map(function (f) {
+      return Math.round(Math.min.apply(null, f.points.map(function (p) { return p.x; }))) + ',' +
+             Math.round(Math.min.apply(null, f.points.map(function (p) { return p.y; })));
+    });
+    chk('reading order is top row left-to-right, then bottom row',
+      order.join(' | ') === '60,40 | 220,40 | 60,220 | 220,220', order.join(' | '));
+  }
+
+  /* --- single opening still makes exactly one frame ------------------ */
+  doc.layers = [];
+  var L1 = overlayLayerFor(cardWithWindows(SIZE, SIZE, [[140, 120, 120, 160]]), SIZE);
+  doc.layers.push(L1);
+  await autoHoleApply(L1);
+  var oneFrame = doc.layers.filter(function (l) { return l.type === 'frame'; });
+  chk('single opening still makes exactly one frame', oneFrame.length === 1, 'frames=' + oneFrame.length);
+  chk('single frame keeps its original name', oneFrame.length === 1 && oneFrame[0].name === 'Opening Frame',
+    oneFrame.length ? oneFrame[0].name : '');
+
+  /* --- bulk: the published payload carries all three drop targets ---- */
+  doc.layers = [];
+  var prepared = null, bulkError = '';
+  try {
+    prepared = await bulkPrepareOne(await dataUrlToFile(src, 'Three Posters.png'), 'overlay', 'Three Posters', null);
+  } catch (error) { bulkError = error && error.message; }
+  chk('bulk prepared the multi-opening mockup', !!prepared, bulkError);
+  if (prepared) {
+    chk('bulk payload has three drop-target paths', prepared.payload.paths.length === 3,
+      'paths=' + prepared.payload.paths.length);
+    chk('bulk payload stays in overlay mode', prepared.payload.mode === 'overlay');
+    chk('bulk reports the opening count in its detection label',
+      prepared.detection.indexOf('3') !== -1, prepared.detection);
+    var combined = new TextEncoder().encode(
+      ['M 0 0 H ' + doc.canvas.w + ' V ' + doc.canvas.h + ' H 0 Z'].concat(prepared.payload.paths).join('')).length;
+    chk('bulk payload respects the combined budget', combined <= FF_PATH_BUDGET, combined + '/' + FF_PATH_BUDGET);
+    chk('bulk payload would pass the shared budget rule',
+      FF_LIMITS.measurePathBudget({ mode: 'overlay', w: doc.canvas.w, h: doc.canvas.h, paths: prepared.payload.paths }).ok);
+    chk('bulk payload has at most MAX_PATHS_SINGLE paths', prepared.payload.paths.length <= FF_MAX_PATHS_SINGLE);
+  }
+
+  /* --- bulk single opening keeps one path --------------------------- */
+  doc.layers = [];
+  var one = null, oneError = '';
+  try {
+    one = await bulkPrepareOne(
+      await dataUrlToFile(cardWithWindows(SIZE, SIZE, [[140, 120, 120, 160]]), 'One Poster.png'),
+      'overlay', 'One Poster', null);
+  } catch (error) { oneError = error && error.message; }
+  chk('bulk still prepares a single-opening mockup', !!one, oneError);
+  if (one) {
+    chk('single-opening bulk payload has exactly one path', one.payload.paths.length === 1,
+      'paths=' + one.payload.paths.length);
+    chk('single-opening detection label is unchanged', one.detection === 'opening', one.detection);
+  }
+
+  chk('no runtime errors after pipeline pass', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
+}
+
 async function run() {
   try {
     testBundle();
@@ -623,6 +883,8 @@ async function run() {
     await testHoles();
     await testHoleReporting();
     await testExistingFeatures();
+    await testMultiOpening();
+    await testMultiOpeningPipelines();
   } catch (error) {
     chk('suite completed without throwing', false, error && error.message);
   }

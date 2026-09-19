@@ -4,7 +4,7 @@ Turn a mockup image into a **native Canva frame** — a real Canva shape with a
 `dropTarget` path. The buyer needs nothing installed, and the element behaves
 like any other Canva frame.
 
-Version **7.4.0**. See [CHANGELOG.md](CHANGELOG.md).
+Version **7.5.0**. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Layout
 

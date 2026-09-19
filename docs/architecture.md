@@ -21,6 +21,17 @@ The build creates no Canva group. It creates one shape with several paths:
 Canva shows one element. A user drags a photo into the opening and adjusts
 that image fill. There is no separate overlay layer to lock or hide.
 
+A mockup with several openings - a room shot with three posters, a shelf of
+frames - stays a single element too. Each opening is one more `dropTarget`
+path inside it, so the buyer drops a different image into each one. All the
+openings therefore share one combined path budget; in practice the binding
+limit is the 29-path ceiling, not the bytes.
+
+`detectOpening()` returns `openings[]` (largest first, `pts` kept as an alias
+for the first one) plus a `skipped` count of regions rejected by the 0.3%
+area filter. `autoScreen()` does the same with `quads[]` for flat-colour
+screens. Openings are capped at 12 per mockup.
+
 An **exact multi** silhouette is the exception: it inserts one aligned
 full-viewBox element per object so each object gets its own path budget, all
 sharing a single uploaded starter photo. Replacing one of those frames does

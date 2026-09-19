@@ -10,7 +10,7 @@ npm run test:compat    backward-compatibility checks
 npm run test:studio    Studio browser suite (headless Chromium)
 ```
 
-## Automated results — 7.4.0
+## Automated results — 7.5.0
 
 ### Limit drift guard
 
@@ -61,7 +61,7 @@ Against an in-memory R2 stub:
 - route surface unchanged: `/api/frames`, `/assets/*` 404 and 400 cases,
   `OPTIONS` 204, root 200, unknown delete 404
 
-### Studio — 70 passed, 0 failed
+### Studio — 121 passed, 0 failed
 
 Loads the real bundle in headless Chromium.
 
@@ -81,6 +81,36 @@ the document, demo layers load, selecting a frame renders its properties, the
 layer list renders, `fit()` recomputes zoom, `exportCanvas` produces
 non-blank pixels, and Save as mockup round-trips through the same
 `localStorage` key with its thumbnail and with frame content stripped.
+
+**Multi-opening auto-detect.** Every assertion is geometric, using
+`isPointInPath` on the paths that would actually be published:
+
+| Case | Result |
+| --- | --- |
+| One transparent window | 1 opening, `openings[0]` identical to `pts`, lands on the real window within 6px |
+| Three posters side by side | 3 openings; each poster centre covered by exactly **one** path; the card between them covered by none |
+| Three posters, path shape | each opening is its own closed single-`M` path; 139 bytes combined against the 1980 budget |
+| Two 16px specks beside a window | 1 opening, `skipped = 2` reported rather than hidden |
+| Two 4px specks beside a window | `skipped = 0` — the morphology close seals them first, so nothing is over-reported |
+| One flat-colour screen | 1 quad, byte-identical to the legacy `pts` |
+| Three flat-colour screens | 3 quads, one per screen; the legacy single quad is confirmed to span all three (the old bug), the new quads leave the gap empty |
+
+**Multi-opening through the real pipelines.** Not just the detector:
+
+| Case | Result |
+| --- | --- |
+| `Pick opening` on a three-poster mockup | 3 frames created, named `Opening Frame 1..3`, all 4-point `rect`, overlay still on top, 3 distinct ids |
+| `Pick opening` on a three-poster mockup, ordering | frames run left to right (x = 40 < 155 < 270) |
+| `Pick opening` on a 2x2 gallery wall | 4 frames in reading order: `60,40 \| 220,40 \| 60,220 \| 220,220` |
+| `Pick opening` on a single opening | exactly 1 frame, still named `Opening Frame` |
+| `bulkPrepareOne` on a three-poster mockup | payload carries 3 drop-target paths, stays in `overlay` mode, detection label `opening x3`, 189 bytes combined, passes the shared `measurePathBudget` rule, within `MAX_PATHS_SINGLE` |
+| `bulkPrepareOne` on a single opening | exactly 1 path, detection label unchanged (`opening`) |
+
+**Detection cost.** Chromium runs the suite on a virtual clock, so wall-clock
+timing is meaningless; the morphology passes are counted instead. A
+single-opening mockup costs **4** passes — the same as before this feature
+existed — and each extra opening adds 2 (4 for one opening, 8 for three).
+Bulk 100 therefore pays nothing extra for ordinary single-opening files.
 
 **Enclosed holes.** Proved geometrically with `isPointInPath` under the
 nonzero fill rule rather than by trusting internal counters:
