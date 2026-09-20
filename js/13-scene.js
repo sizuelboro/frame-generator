@@ -97,6 +97,21 @@ function sceneBuildKeyedPlate(frames, scale) {
   return plate;
 }
 
+/* width / height of a rebuilt opening, from its bounding box. */
+function _ffOpeningAspect(o) {
+  const pts = o && (o.pts || o.points);
+  if (!pts || pts.length < 3) return null;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    if (pts[i].x < minX) minX = pts[i].x;
+    if (pts[i].x > maxX) maxX = pts[i].x;
+    if (pts[i].y < minY) minY = pts[i].y;
+    if (pts[i].y > maxY) maxY = pts[i].y;
+  }
+  const w = maxX - minX, h = maxY - minY;
+  return h > 0 ? w / h : null;
+}
+
 function _ffSceneSlug(s) {
   return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 }
@@ -123,8 +138,18 @@ if ($('#btnSceneExport')) {
       sourceAspect: +(doc.canvas.w / doc.canvas.h).toFixed(4),
       openingAreaRatio: +areaRatio.toFixed(5),
       openingCount: frames.length,
+      /* The declared print ratio of the opening, when one was chosen from
+         the ratio presets. The canvas aspect below is NOT a substitute:
+         an image model usually returns the same canvas size while still
+         handing back an opening of the wrong shape, so the canvas check
+         passes and the error goes out the door. This is the value that
+         actually catches "I asked for A4 and got US Letter". */
+      openingRatioId: (frames.find(f => f.ratioId) || {}).ratioId || null,
+      openingRatio: (frames.find(f => f.ratioValue) || {}).ratioValue || null,
       openings: frames.map(f => ({
         frameType: f.frameType || 'rect',
+        ratioId: f.ratioId || null,
+        ratioValue: f.ratioValue || null,
         points: f.points.map(p => ({ x: +p.x.toFixed(2), y: +p.y.toFixed(2) }))
       })),
       exportedAt: new Date().toISOString()
@@ -413,6 +438,28 @@ if ($('#btnSceneImport')) {
     }
     if (sidecar && sidecar.openingCount && res.openings.length > sidecar.openingCount) {
       notes.push('found ' + res.openings.length + ' openings but exported ' + sidecar.openingCount + ' - the frame may be occluded or duplicated');
+    }
+
+    /* Shape of the opening itself, against the ratio that was declared.
+       Checked at 2% because the print sizes people confuse sit much
+       further apart than that: A-series is 0.707, US Letter 0.773 and
+       11x14 0.786, so a real mix-up is 8-10% out and cannot hide. */
+    if (sidecar && sidecar.openingRatio) {
+      const got = _ffOpeningAspect(res.openings[0]);
+      if (got) {
+        const drift = Math.abs(got - sidecar.openingRatio) / sidecar.openingRatio;
+        if (drift > 0.02) {
+          notes.push('opening came back at ratio ' + got.toFixed(3) + ' but ' +
+            (sidecar.openingRatioId || 'the export') + ' is ' + sidecar.openingRatio.toFixed(3) +
+            ' (' + Math.round(drift * 100) + '% out) - the model changed the print shape, do not publish this');
+        }
+      }
+    } else if (sidecar) {
+      notes.push('no print ratio was declared on export, so the opening shape could not be checked - pick a frame ratio before exporting');
+    }
+
+    if (!sidecar) {
+      notes.push('no sidecar found in this browser, so none of the import checks ran - export and import from the same browser');
     }
 
     const parts = [res.openings.length + (res.openings.length === 1 ? ' opening' : ' openings') + ' rebuilt'];
