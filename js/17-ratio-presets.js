@@ -18,7 +18,11 @@
 
 /* Portrait ratios, expressed short-side : long-side. A-series is one entry
    on purpose - A5 through A1 are all 1:root(2), so the shape is identical
-   and only the printed size differs. */
+   and only the printed size differs.
+
+   `sizes` is written portrait-first and flipped for display in landscape
+   rather than being listed twice, so each preset keeps one source of
+   truth. */
 const FF_RATIOS = [
   { id: 'iso',   label: 'A-series',  w: 1,  h: 1.41421356, sizes: 'A5, A4, A3, A2, A1' },
   { id: '2-3',   label: '2:3',       w: 2,  h: 3,          sizes: '12\u00d718, 16\u00d724, 20\u00d730, 24\u00d736' },
@@ -41,6 +45,31 @@ function ffRatioValue(id, orientation) {
   if (!r) return null;
   const portrait = r.w / r.h;
   return orientation === 'landscape' ? 1 / portrait : portrait;
+}
+
+/* The ratio family itself flips with the orientation: a 2:3 print hung
+   sideways is a 3:2 print. Squares read the same either way. */
+function ffRatioFamilyLabel(id, orientation) {
+  const r = ffRatio(id);
+  if (!r) return '';
+  if (orientation !== 'landscape' || r.id === '1-1' || r.id === 'iso') return r.label;
+  const parts = r.label.split(':');
+  return parts.length === 2 ? parts[1] + ':' + parts[0] : r.label;
+}
+
+/* "12x18, 16x24" -> "18x12, 24x16". Entries with nothing to swap, such as
+   the A-series names and "Square prints", pass straight through. */
+function ffFlipSizes(sizes) {
+  return String(sizes).split(', ').map(part => {
+    const m = /^(\d+)\u00d7(\d+)$/.exec(part.trim());
+    return m ? m[2] + '\u00d7' + m[1] : part;
+  }).join(', ');
+}
+
+function ffRatioSizes(id, orientation) {
+  const r = ffRatio(id);
+  if (!r) return '';
+  return orientation === 'landscape' ? ffFlipSizes(r.sizes) : r.sizes;
 }
 
 function ffRatioLabel(id, orientation) {
@@ -88,9 +117,15 @@ function ffAddRatioFrame(id, orientation) {
 let ffRatioOrientation = 'portrait';
 let ffSelectedRatio = '';
 
+/* Rebuilt rather than mutated, so the orientation toggle can call it again
+   and every label is regenerated from one place. The current choice is
+   restored afterwards - flipping orientation must never silently clear the
+   ratio the creator already picked. */
 function ffRatioFillSelect() {
   const sel = $('#ratioPreset');
-  if (!sel || sel.options.length) return;
+  if (!sel) return;
+  const keep = sel.value || ffSelectedRatio || '';
+  sel.textContent = '';
   const first = document.createElement('option');
   first.value = '';
   first.textContent = 'Frame ratio\u2026';
@@ -98,14 +133,20 @@ function ffRatioFillSelect() {
   FF_RATIOS.forEach(r => {
     const o = document.createElement('option');
     o.value = r.id;
-    o.textContent = r.label + ' \u2014 ' + r.sizes;
+    o.textContent = ffRatioFamilyLabel(r.id, ffRatioOrientation) + ' \u2014 ' +
+      ffRatioSizes(r.id, ffRatioOrientation);
     sel.appendChild(o);
   });
+  sel.value = keep;
 }
 
 function ffUpdateOrientButton() {
   const b = $('#btnRatioOrient');
-  if (b) b.textContent = ffRatioOrientation === 'landscape' ? 'Landscape' : 'Portrait';
+  if (!b) return;
+  b.textContent = (ffRatioOrientation === 'landscape' ? 'Landscape' : 'Portrait') + ' \u21c5';
+  b.title = 'Click to switch to ' +
+    (ffRatioOrientation === 'landscape' ? 'portrait' : 'landscape') +
+    '. The ratio family stays the same; only the orientation flips.';
 }
 
 ffRatioFillSelect();
@@ -115,7 +156,13 @@ if ($('#btnRatioOrient')) {
   $('#btnRatioOrient').onclick = () => {
     ffRatioOrientation = ffRatioOrientation === 'portrait' ? 'landscape' : 'portrait';
     ffUpdateOrientButton();
-    toast('Frame ratio orientation: ' + ffRatioOrientation);
+    ffRatioFillSelect();
+    const r = ffSelectedRatio ? ffRatio(ffSelectedRatio) : null;
+    toast(r
+      ? ffRatioFamilyLabel(r.id, ffRatioOrientation) + ' \u00b7 ' +
+        ffRatioSizes(r.id, ffRatioOrientation) + ' \u00b7 ratio ' +
+        ffRatioValue(r.id, ffRatioOrientation).toFixed(3)
+      : 'Frame ratio orientation: ' + ffRatioOrientation);
   };
 }
 
@@ -126,8 +173,8 @@ if ($('#ratioPreset')) {
   $('#ratioPreset').onchange = (ev) => {
     ffSelectedRatio = ev.target.value || '';
     if (!ffSelectedRatio) return;
-    const r = ffRatio(ffSelectedRatio);
-    toast(r.label + ' selected \u00b7 ' + r.sizes + ' \u00b7 ratio ' +
+    toast(ffRatioFamilyLabel(ffSelectedRatio, ffRatioOrientation) + ' selected \u00b7 ' +
+      ffRatioSizes(ffSelectedRatio, ffRatioOrientation) + ' \u00b7 ratio ' +
       ffRatioValue(ffSelectedRatio, ffRatioOrientation).toFixed(3) +
       ' \u2014 now add an opening or pick a frame design');
   };
