@@ -112,6 +112,74 @@ function _ffOpeningAspect(o) {
   return h > 0 ? w / h : null;
 }
 
+/* ---------------------------------------------------------------------
+   Ratio rectify.
+
+   An image model hands back an opening that is a percent or two off the
+   print ratio it was given. Rejecting that render throws away a good
+   photograph over an error the eye cannot see, and stretching artwork to
+   fill it pushes the same error onto the buyer's print instead. So the
+   geometry is corrected here: the whole scene is scaled by a hair about
+   the centre of the opening until the opening is exactly the declared
+   ratio. Nothing is pasted, repainted or re-lit, so every bit of the
+   model's realism survives; a 2% correction on a 1500px render moves the
+   furthest pixel by about ten.
+
+   The correction is area-preserving - w' = sqrt(ratio * w * h) - so the
+   print keeps the size it was rendered at and only changes shape. A
+   uniform cover factor is then applied so the scaled scene still fills
+   the canvas and no bare strip appears along an edge.
+
+   Only an axis-aligned opening is corrected. A scene in perspective
+   needs a warp that decays back to identity away from the frame, which
+   is not shipped yet, so those are reported instead of silently bent.
+   --------------------------------------------------------------------- */
+const FF_SCENE_RECTIFY_MIN = 0.002;   // below this the fix is pointless
+const FF_SCENE_RECTIFY_MAX = 0.08;    // above this it is a real mix-up, not drift
+
+function _ffRectifyTransform(pts, target) {
+  if (!pts || pts.length < 3 || !(target > 0)) return null;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    if (pts[i].x < minX) minX = pts[i].x;
+    if (pts[i].x > maxX) maxX = pts[i].x;
+    if (pts[i].y < minY) minY = pts[i].y;
+    if (pts[i].y > maxY) maxY = pts[i].y;
+  }
+  const w = maxX - minX, h = maxY - minY;
+  if (!(w > 0) || !(h > 0)) return null;
+
+  const got = w / h;
+  const drift = Math.abs(got - target) / target;
+
+  const w2 = Math.sqrt(target * w * h);     // area-preserving
+  const h2 = w2 / target;
+  let sx = w2 / w, sy = h2 / h;
+
+  /* One axis always comes out below 1. Scaling both by the same cover
+     factor keeps the ratio exact while guaranteeing the scene still
+     reaches every edge of the canvas. */
+  const cover = Math.max(1 / sx, 1 / sy, 1);
+  sx *= cover; sy *= cover;
+
+  return { sx, sy, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, got, target, drift };
+}
+
+async function _ffRectifyScene(src, w, h, t) {
+  const img = await loadImg(src);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  x.imageSmoothingEnabled = true;
+  x.imageSmoothingQuality = 'high';
+  /* scale about the centre of the opening, not the centre of the canvas,
+     so the frame stays where the model put it */
+  x.setTransform(t.sx, 0, 0, t.sy, t.cx - t.sx * t.cx, t.cy - t.sy * t.cy);
+  x.drawImage(img, 0, 0, w, h);
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  return c.toDataURL('image/png');
+}
+
 function _ffSceneSlug(s) {
   return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 }
@@ -143,7 +211,8 @@ if ($('#btnSceneExport')) {
          an image model usually returns the same canvas size while still
          handing back an opening of the wrong shape, so the canvas check
          passes and the error goes out the door. This is the value that
-         actually catches "I asked for A4 and got US Letter". */
+         actually catches "I asked for A4 and got US Letter", and it is
+         also what the importer rectifies the render against. */
       openingRatioId: (frames.find(f => f.ratioId) || {}).ratioId || null,
       openingRatio: (frames.find(f => f.ratioValue) || {}).ratioValue || null,
       openings: frames.map(f => ({
@@ -182,6 +251,9 @@ if ($('#btnSceneExport')) {
       '  it, but it must stay green and must stay empty.',
       '  Import in the same browser you exported from, otherwise the sidecar',
       '  validation warnings are skipped.',
+      '  A model usually returns the opening a percent or two off the ratio',
+      '  it was asked for. The importer measures that and corrects the whole',
+      '  render, so the print comes out at the exact ratio either way.',
       '',
       'Source canvas   ' + doc.canvas.w + ' x ' + doc.canvas.h,
       'Export scale    ' + scale + 'x  (' + plate.width + ' x ' + plate.height + ')',
@@ -389,6 +461,21 @@ async function sceneKeyApply(L, tol) {
   return res;
 }
 
+/* Start a fresh scene document from one image and hand back the layer the
+   key-out runs on. Import calls this a second time when the render has to
+   be rectified, so the two passes cannot drift apart. */
+function _ffSceneNewDoc(name, src, w, h) {
+  const L = {
+    id: uid(), type: 'image', sceneSource: true,
+    name: name || 'AI scene',
+    visible: true, locked: false, opacity: 1,
+    src, x: 0, y: 0, w, h, rotation: 0
+  };
+  doc = { canvas: { w, h, bg: '#FFFFFF' }, kind: 'scene', layers: [L] };
+  sel = L.id; contentEdit = null; contentCache.clear(); sizePill(); fit(); sync();
+  return L;
+}
+
 if ($('#btnSceneImport')) {
   $('#btnSceneImport').onclick = async () => {
     const f = await pickFile();
@@ -406,14 +493,8 @@ if ($('#btnSceneImport')) {
     try { sidecar = JSON.parse(localStorage.getItem(FF_SCENE_SIDECAR_KEY) || 'null'); } catch (e) { sidecar = null }
 
     // a scene always becomes its own document, so the original frame design survives
-    const L = {
-      id: uid(), type: 'image', sceneSource: true,
-      name: (f.name || '').replace(/\.[^.]+$/, '') || 'AI scene',
-      visible: true, locked: false, opacity: 1,
-      src: f.src, x: 0, y: 0, w: m.w, h: m.h, rotation: 0
-    };
-    doc = { canvas: { w: m.w, h: m.h, bg: '#FFFFFF' }, kind: 'scene', layers: [L] };
-    sel = L.id; contentEdit = null; contentCache.clear(); sizePill(); fit(); sync();
+    const name = (f.name || '').replace(/\.[^.]+$/, '') || 'AI scene';
+    let L = _ffSceneNewDoc(name, f.src, m.w, m.h);
 
     toast('Looking for the green opening\u2026');
     let res = null;
@@ -422,6 +503,35 @@ if ($('#btnSceneImport')) {
     if (!res) {
       toast('No green opening found - use Pick opening to click inside it, or re-import with a higher tolerance');
       return;
+    }
+
+    /* --- ratio rectify ---
+       Measure the opening the model actually drew, and if it is off the
+       declared ratio by a correctable amount, nudge the whole render and
+       key it out again. The second pass measures the corrected picture,
+       so the number reported below is real and not predicted. */
+    let fixed = null;
+    if (sidecar && sidecar.openingRatio && res.openings.length === 1) {
+      const o0 = res.openings[0];
+      const square = o0.pts.length === 4 && isAxisRect(o0.pts);
+      const t = square ? _ffRectifyTransform(o0.pts, sidecar.openingRatio) : null;
+      if (t && t.drift > FF_SCENE_RECTIFY_MIN && t.drift <= FF_SCENE_RECTIFY_MAX) {
+        toast('Opening is ' + (t.drift * 100).toFixed(1) + '% off the print ratio - correcting\u2026');
+        let res2 = null;
+        try {
+          const fixedSrc = await _ffRectifyScene(f.src, m.w, m.h, t);
+          L = _ffSceneNewDoc(name, fixedSrc, m.w, m.h);
+          res2 = await sceneKeyApply(L, tol);
+        } catch (e) { res2 = null }
+        if (res2) { res = res2; fixed = t; }
+        else {
+          /* the corrected pass failed for some reason - fall back to the
+             render exactly as the model returned it rather than leaving
+             the user with a half-built document */
+          L = _ffSceneNewDoc(name, f.src, m.w, m.h);
+          try { res = await sceneKeyApply(L, tol) || res; } catch (e) { /* keep the first result */ }
+        }
+      }
     }
 
     const notes = [];
@@ -441,17 +551,23 @@ if ($('#btnSceneImport')) {
     }
 
     /* Shape of the opening itself, against the ratio that was declared.
-       Checked at 2% because the print sizes people confuse sit much
-       further apart than that: A-series is 0.707, US Letter 0.773 and
-       11x14 0.786, so a real mix-up is 8-10% out and cannot hide. */
+       Anything inside the rectify band has already been corrected above,
+       so what is left here is either a shape that could not be corrected
+       or a genuine mix-up: A-series is 0.707, US Letter 0.773 and 11x14
+       0.786, so swapping one for another lands 8-10% out and cannot hide
+       behind the correction. */
+    let after = null;
     if (sidecar && sidecar.openingRatio) {
-      const got = _ffOpeningAspect(res.openings[0]);
-      if (got) {
-        const drift = Math.abs(got - sidecar.openingRatio) / sidecar.openingRatio;
-        if (drift > 0.02) {
-          notes.push('opening came back at ratio ' + got.toFixed(3) + ' but ' +
-            (sidecar.openingRatioId || 'the export') + ' is ' + sidecar.openingRatio.toFixed(3) +
-            ' (' + Math.round(drift * 100) + '% out) - the model changed the print shape, do not publish this');
+      after = _ffOpeningAspect(res.openings[0]);
+      if (after) {
+        const drift = Math.abs(after - sidecar.openingRatio) / sidecar.openingRatio;
+        const declared = (sidecar.openingRatioId || 'the export') + ' is ' + sidecar.openingRatio.toFixed(3);
+        if (drift > FF_SCENE_RECTIFY_MAX) {
+          notes.push('opening came back at ratio ' + after.toFixed(3) + ' but ' + declared +
+            ' (' + Math.round(drift * 100) + '% out) - too far out to be drift, the model changed the print shape, do not publish this');
+        } else if (drift > FF_SCENE_RECTIFY_MIN) {
+          notes.push('opening is at ratio ' + after.toFixed(3) + ' but ' + declared +
+            ' (' + (drift * 100).toFixed(1) + '% out) and could not be corrected automatically - the opening is not square-on, so check it before publishing');
         }
       }
     } else if (sidecar) {
@@ -463,6 +579,12 @@ if ($('#btnSceneImport')) {
     }
 
     const parts = [res.openings.length + (res.openings.length === 1 ? ' opening' : ' openings') + ' rebuilt'];
+    if (fixed) {
+      parts.push('ratio corrected from ' + fixed.got.toFixed(3) + ' to ' +
+        (after != null ? after.toFixed(3) : fixed.target.toFixed(3)) +
+        ' (' + (fixed.drift * 100).toFixed(1) + '% out' +
+        (sidecar.openingRatioId ? ', ' + sidecar.openingRatioId : '') + ')');
+    }
     parts.push(res.shadowLayerAdded
       ? 'shadow harvested at ' + Math.round(res.shadowDepth * 100) + '% depth'
       : 'no shadow found on the green');
