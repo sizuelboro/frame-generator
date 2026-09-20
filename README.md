@@ -68,8 +68,48 @@ Both guards run as part of `npm test`.
 Read [docs/architecture.md](docs/architecture.md) before changing tracing,
 bleed or path encoding.
 
+## Print ratios and frame designs
+
+The toolbar opens with a **ratio picker**, a portrait/landscape toggle, **Add
+opening**, and a **frame design** picker. Pick the print size first, then the
+moulding; everything downstream inherits that choice.
+
+Seven presets, covering what actually sells:
+
+| Ratio | Common sizes |
+| --- | --- |
+| A-series | A5, A4, A3, A2, A1 |
+| 2:3 | 12×18, 16×24, 20×30, 24×36 |
+| 3:4 | 9×12, 12×16, 18×24 |
+| 4:5 | 8×10, 16×20 |
+| 5:7 | 5×7, 10×14 |
+| 11:14 | 11×14 |
+| 1:1 | Square prints |
+
+The chosen ratio is **recorded on the layer**, not measured back off the
+geometry. 5:7 (0.7143) and A-series (0.7071) sit about 1% apart, which is
+inside the noise of a traced opening, so measurement alone cannot tell an A4
+listing from a 5×7 one.
+
+Frame designs are **generated, not stitched from asset PNGs**. A flat 256px
+swatch is drawn as four bars mitred at 45 degrees around the opening, so every
+ratio gets fresh geometry and nothing is stretched or tiled. Six built-ins
+(white, black, gold, oak, walnut, natural) plus **custom swatch upload** — any
+flat image or colour becomes a frame that meets correctly at all four corners.
+
+### Why this matters for the AI round trip
+
+**Export for AI** now writes the declared ratio into the scene sidecar, and
+**Import AI scene** checks the returned opening's own aspect against it within
+2%. The older canvas-aspect check missed wrong-ratio returns because image
+models usually keep the canvas size and quietly change the opening inside it —
+which is exactly how a "US Letter" opening (0.773) ends up sold as A4 (0.707).
+
 ## Creator workflow
 
+0. Pick a **ratio preset** and orientation, hit **Add opening**, then choose a
+   **frame design**. Skip this if you are starting from an existing mockup
+   photo.
 1. Build or open the mockup in the Studio.
 2. Leave **Auto bleed** at 6px (8px for rough edges). It is a ceiling, not a
    fixed amount — overlay opacity is measured per opening vertex and thin
