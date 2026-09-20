@@ -270,8 +270,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
           <button class="btn" id="btnRemoveBg">Remove bg</button>
           <h3>Batch</h3>
           <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk 100</button>
-          <h3>Canvas &amp; library</h3>
-          <button class="btn" id="btnFitCanvas">Fit canvas</button>
+          <h3>Library</h3>
           <button class="btn" id="btnLibrarySettings">Library settings</button>
         </div>
       </div>
@@ -282,6 +281,12 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
     <!-- State, not actions -->
     <div class="grp">
       <span class="pill" id="sizePill">1200 &#215; 800</span>
+      <button class="btn" id="btnFitCanvas">Fit canvas</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="grp">
       <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
       <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
     </div>
