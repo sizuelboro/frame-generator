@@ -69,13 +69,66 @@ function ffSwatchWood(base) {
   return c;
 }
 
+function ffSwatchMaple(base) {
+  // Maple is tight, low-contrast grain. Oak's grain is tuned for a 23px face;
+  // on a slim face those same sine waves smear into blotches, so keep the
+  // variation fine and faint and the face reads as one flat plane.
+  const c = _ffSwatchCanvas(), x = c.getContext('2d');
+  x.fillStyle = base || '#E3C89B';
+  x.fillRect(0, 0, c.width, c.height);
+  for (let y = 0; y < c.height; y++) {
+    const g = Math.sin(y * 0.90) * 0.5 + Math.sin(y * 0.21 + 0.7) * 0.35 + Math.sin(y * 0.031) * 0.15;
+    x.fillStyle = 'rgba(74,48,24,' + Math.max(0, -g * 0.035).toFixed(3) + ')';
+    x.fillRect(0, y, c.width, 1);
+    x.fillStyle = 'rgba(255,245,228,' + Math.max(0, g * 0.045).toFixed(3) + ')';
+    x.fillRect(0, y, c.width, 1);
+  }
+  return c;
+}
+
+/* ---------------------------------------------------------------------
+   Bevel profiles, measured across the thickness of the bar: stop 0 is the
+   outer edge of the frame, stop 1 the lip against the opening.
+
+   CLASSIC is the original profile and suits a wide ornate moulding: it
+   sweeps roughly 97 levels of lightness, so the face reads as rounded.
+   A slim modern frame does the opposite. Sampling the left bar of two
+   reference photographs gives a face that is flat within about 12 levels,
+   with both edges catching light rather than going dark - so FLAT keeps
+   the face even and lifts the edges instead of shading them.
+   --------------------------------------------------------------------- */
+const FF_BEVEL_CLASSIC = [
+  [0.00, 'rgba(0,0,0,0.34)'],
+  [0.16, 'rgba(255,255,255,0.26)'],
+  [0.42, 'rgba(255,255,255,0.10)'],
+  [0.72, 'rgba(0,0,0,0.12)'],
+  [1.00, 'rgba(0,0,0,0.42)']
+];
+const FF_BEVEL_FLAT = [
+  [0.00, 'rgba(255,255,255,0.30)'],
+  [0.10, 'rgba(0,0,0,0.05)'],
+  [0.55, 'rgba(255,255,255,0.03)'],
+  [0.86, 'rgba(0,0,0,0.06)'],
+  [0.94, 'rgba(255,255,255,0.10)'],
+  [1.00, 'rgba(255,255,255,0.34)']
+];
+
 const FF_FRAME_DESIGNS = [
   { id: 'white',  label: 'White',       build: () => ffSwatchFlat('#FBFAF8') },
   { id: 'black',  label: 'Black',       build: () => ffSwatchFlat('#232323') },
   { id: 'gold',   label: 'Gold',        build: ffSwatchGold },
   { id: 'oak',    label: 'Oak',         build: () => ffSwatchWood('#B98A55') },
   { id: 'walnut', label: 'Walnut',      build: () => ffSwatchWood('#6F4525') },
-  { id: 'natural',label: 'Natural wood',build: () => ffSwatchWood('#96603A') }
+  { id: 'natural',label: 'Natural wood',build: () => ffSwatchWood('#96603A') },
+  {
+    id: 'maple', label: 'Maple (slim)',
+    // measured off the reference photographs: moulding is ~3.4% of the opening
+    borderPct: 3.2,
+    bevel: FF_BEVEL_FLAT,
+    lipInner: 'rgba(255,255,255,0.55)',
+    lipOuter: 'rgba(0,0,0,0.10)',
+    build: () => ffSwatchMaple('#E3C89B')
+  }
 ];
 
 function ffFrameDesign(id) {
@@ -91,7 +144,7 @@ let ffCustomSwatch = null;
    shading across its thickness so it reads as a raised profile rather
    than a flat sticker.
    --------------------------------------------------------------------- */
-function ffBuildBar(swatch, length, thick, flip) {
+function ffBuildBar(swatch, length, thick, flip, bevel) {
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(length));
   c.height = Math.max(1, Math.round(thick));
@@ -107,11 +160,7 @@ function ffBuildBar(swatch, length, thick, flip) {
 
   // bevel across the thickness
   const g = x.createLinearGradient(0, 0, 0, c.height);
-  g.addColorStop(0.00, 'rgba(0,0,0,0.34)');
-  g.addColorStop(0.16, 'rgba(255,255,255,0.26)');
-  g.addColorStop(0.42, 'rgba(255,255,255,0.10)');
-  g.addColorStop(0.72, 'rgba(0,0,0,0.12)');
-  g.addColorStop(1.00, 'rgba(0,0,0,0.42)');
+  (bevel || FF_BEVEL_CLASSIC).forEach(s => g.addColorStop(s[0], s[1]));
   x.fillStyle = g;
   x.fillRect(0, 0, c.width, c.height);
 
@@ -131,7 +180,12 @@ function ffBuildBar(swatch, length, thick, flip) {
    The frame itself. Four bars, clipped to trapezoids so the corners meet
    at a true 45 degree mitre. The opening is left fully transparent.
    --------------------------------------------------------------------- */
-function ffBuildMitredFrame(swatch, W, H, border) {
+function ffBuildMitredFrame(swatch, W, H, border, opts) {
+  const o = opts || {};
+  const bevel = o.bevel;
+  const lipInner = o.lipInner !== undefined ? o.lipInner : 'rgba(0,0,0,0.38)';
+  const lipOuter = o.lipOuter !== undefined ? o.lipOuter : 'rgba(0,0,0,0.22)';
+
   W = Math.max(8, Math.round(W));
   H = Math.max(8, Math.round(H));
   const b = Math.max(2, Math.min(Math.round(border), Math.floor(Math.min(W, H) / 2) - 1));
@@ -148,10 +202,10 @@ function ffBuildMitredFrame(swatch, W, H, border) {
     x.clip();
   };
 
-  const hBar = ffBuildBar(swatch, W, b, false);
-  const hBarFlip = ffBuildBar(swatch, W, b, true);
-  const vBar = ffBuildBar(swatch, H, b, false);
-  const vBarFlip = ffBuildBar(swatch, H, b, true);
+  const hBar = ffBuildBar(swatch, W, b, false, bevel);
+  const hBarFlip = ffBuildBar(swatch, W, b, true, bevel);
+  const vBar = ffBuildBar(swatch, H, b, false, bevel);
+  const vBarFlip = ffBuildBar(swatch, H, b, true, bevel);
 
   // top
   x.save(); clip([[0, 0], [W, 0], [W - b, b], [b, b]]);
@@ -171,12 +225,18 @@ function ffBuildMitredFrame(swatch, W, H, border) {
   x.translate(W, 0); x.rotate(Math.PI / 2);
   x.drawImage(vBarFlip, 0, 0); x.restore();
 
-  // crisp lip against the opening, and a soft outer edge
-  x.strokeStyle = 'rgba(0,0,0,0.38)';
+  // Lip against the opening, and the outer edge. A wide moulding wants both
+  // dark; on the reference photographs the lip is the brightest pixel on the
+  // frame, because the rabbet edge catches the light. Either can be null.
   x.lineWidth = 1;
-  x.strokeRect(b - 0.5, b - 0.5, W - b * 2 + 1, H - b * 2 + 1);
-  x.strokeStyle = 'rgba(0,0,0,0.22)';
-  x.strokeRect(0.5, 0.5, W - 1, H - 1);
+  if (lipInner) {
+    x.strokeStyle = lipInner;
+    x.strokeRect(b - 0.5, b - 0.5, W - b * 2 + 1, H - b * 2 + 1);
+  }
+  if (lipOuter) {
+    x.strokeStyle = lipOuter;
+    x.strokeRect(0.5, 0.5, W - 1, H - 1);
+  }
 
   return { canvas: c, border: b, opening: { x: b, y: b, w: W - b * 2, h: H - b * 2 } };
 }
@@ -189,9 +249,10 @@ function ffApplyFrameDesign(opts) {
   const o = opts || {};
   const ratioId = o.ratioId || '2-3';
   const orientation = o.orientation === 'landscape' ? 'landscape' : 'portrait';
-  const borderPct = typeof o.borderPct === 'number' ? o.borderPct : 7.5;
-
   const design = o.swatch ? null : ffFrameDesign(o.designId || 'white');
+  // an explicit override wins, then the design's own width, then the default
+  const borderPct = typeof o.borderPct === 'number' ? o.borderPct
+    : (design && typeof design.borderPct === 'number' ? design.borderPct : 7.5);
   const swatch = o.swatch || (design ? design.build() : ffSwatchFlat('#FBFAF8'));
   if (!swatch) return null;
 
@@ -207,7 +268,11 @@ function ffApplyFrameDesign(opts) {
   const ox = Math.round((doc.canvas.w - W) / 2);
   const oy = Math.round((doc.canvas.h - H) / 2);
 
-  const built = ffBuildMitredFrame(swatch, W, H, b);
+  const built = ffBuildMitredFrame(swatch, W, H, b, design ? {
+    bevel: design.bevel,
+    lipInner: design.lipInner,
+    lipOuter: design.lipOuter
+  } : null);
   const src = built.canvas.toDataURL('image/png');
 
   const label = (design ? design.label : (o.swatchName || 'Custom')) + ' \u00b7 ' + ffRatioLabel(ratioId, orientation);
