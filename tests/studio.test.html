@@ -330,6 +330,9 @@ window.addEventListener('unhandledrejection', function (e) {
 <script src="../js/13-scene.js"></script><!-- scene plate and colour key -->
 <script src="../js/14-wand.js"></script><!-- magic wand opening -->
 <script src="../js/15-mockup-pdf.js"></script><!-- whole-mockup PDF -->
+<script src="../js/16-build-info.js"></script><!-- build marker -->
+<script src="../js/17-ratio-presets.js"></script><!-- print-size ratio presets -->
+<script src="../js/18-frame-designs.js"></script><!-- generated mitred frame designs -->
 <script>
 /* =========================================================================
    FrameForge Studio browser test suite
@@ -876,6 +879,155 @@ async function testMultiOpeningPipelines() {
   chk('no runtime errors after pipeline pass', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
 }
 
+/* =========================================================================
+   Ratio presets
+   ========================================================================= */
+function testRatioPresets() {
+  section('8. print-size ratio presets');
+
+  chk('FF_RATIOS exposed', Array.isArray(window.FF_RATIOS) && window.FF_RATIOS.length === 7,
+    'count=' + (window.FF_RATIOS || []).length);
+
+  // every preset resolves to the arithmetic ratio it claims
+  var expect = { 'iso': 1 / Math.SQRT2, '2-3': 2 / 3, '3-4': 3 / 4, '4-5': 4 / 5, '5-7': 5 / 7, '11-14': 11 / 14, '1-1': 1 };
+  for (var i = 0; i < FF_RATIOS.length; i++) {
+    var id = FF_RATIOS[i].id;
+    var got = ffRatioValue(id, 'portrait');
+    chk('portrait ratio exact: ' + id, Math.abs(got - expect[id]) < 0.0005, got.toFixed(4));
+  }
+
+  chk('A-series is 1:root2', Math.abs(ffRatioValue('iso', 'portrait') - 0.70710678) < 0.0001);
+  chk('landscape is the reciprocal', Math.abs(ffRatioValue('2-3', 'landscape') - 1.5) < 0.0005,
+    ffRatioValue('2-3', 'landscape').toFixed(4));
+  chk('square is orientation-independent',
+    ffRatioValue('1-1', 'portrait') === ffRatioValue('1-1', 'landscape'));
+  chk('unknown preset returns null', ffRatioValue('nope', 'portrait') === null);
+
+  // 5:7 and A-series are close enough to be confused by eye, so the two
+  // must stay distinguishable by id rather than by measurement alone
+  chk('5:7 and A-series are distinct but within 1%',
+    Math.abs(ffRatioValue('5-7') - ffRatioValue('iso')) > 0 &&
+    Math.abs(ffRatioValue('5-7') - ffRatioValue('iso')) / ffRatioValue('iso') < 0.011,
+    (Math.abs(ffRatioValue('5-7') - ffRatioValue('iso')) / ffRatioValue('iso') * 100).toFixed(2) + '%');
+
+  // box fits inside the canvas and holds the ratio
+  var box = ffRatioBox('2-3', 'portrait', 1200, 800);
+  chk('box fits the canvas', box.w <= 1200 && box.h <= 800, box.w + 'x' + box.h);
+  chk('box holds the ratio', Math.abs(box.w / box.h - 2 / 3) < 0.01, (box.w / box.h).toFixed(4));
+  chk('box is centred', Math.abs((1200 - box.w) / 2 - box.x) <= 1 && Math.abs((800 - box.h) / 2 - box.y) <= 1);
+
+  var wide = ffRatioBox('2-3', 'landscape', 1200, 800);
+  chk('landscape box also fits', wide.w <= 1200 && wide.h <= 800, wide.w + 'x' + wide.h);
+
+  // adding a frame records the intent on the layer
+  var before = doc.layers.length;
+  var L = ffAddRatioFrame('iso', 'portrait');
+  chk('frame layer added', doc.layers.length === before + 1 && !!L);
+  chk('frame is a rect', L.type === 'frame' && L.frameType === 'rect', L.frameType);
+  chk('ratio id recorded', L.ratioId === 'iso', String(L.ratioId));
+  chk('ratio value recorded', Math.abs(L.ratioValue - 0.7071) < 0.001, String(L.ratioValue));
+  chk('orientation recorded', L.ratioOrientation === 'portrait');
+  chk('name carries the preset', /A-series/.test(L.name), L.name);
+
+  var b2 = bbox(L.points);
+  chk('geometry matches the declared ratio', Math.abs(b2.w / b2.h - 0.70710678) < 0.005,
+    (b2.w / b2.h).toFixed(4));
+  chk('four points', L.points.length === 4);
+
+  doc.layers.length = before;
+}
+
+/* =========================================================================
+   Generated frame designs
+   ========================================================================= */
+function testFrameDesigns() {
+  section('9. generated mitred frame designs');
+
+  chk('FF_FRAME_DESIGNS exposed', Array.isArray(window.FF_FRAME_DESIGNS) && window.FF_FRAME_DESIGNS.length >= 4,
+    'count=' + (window.FF_FRAME_DESIGNS || []).length);
+
+  var sw = ffSwatchGold();
+  chk('swatch is a square canvas', sw.width === sw.height && sw.width > 0, sw.width + 'x' + sw.height);
+
+  var f = ffBuildMitredFrame(sw, 400, 600, 30);
+  chk('frame canvas is the asked size', f.canvas.width === 400 && f.canvas.height === 600,
+    f.canvas.width + 'x' + f.canvas.height);
+  chk('opening is inset by the border', f.opening.x === 30 && f.opening.y === 30 &&
+    f.opening.w === 340 && f.opening.h === 540,
+    JSON.stringify(f.opening));
+
+  var x = f.canvas.getContext('2d');
+  // the whole point: the opening must be fully transparent so artwork shows
+  var mid = x.getImageData(200, 300, 1, 1).data;
+  chk('opening is fully transparent', mid[3] === 0, 'alpha=' + mid[3]);
+  // and the moulding must be fully opaque
+  var bar = x.getImageData(200, 12, 1, 1).data;
+  chk('top moulding is opaque', bar[3] === 255, 'alpha=' + bar[3]);
+  var side = x.getImageData(12, 300, 1, 1).data;
+  chk('left moulding is opaque', side[3] === 255, 'alpha=' + side[3]);
+
+  // mitre: the corner diagonal means a pixel just outside the 45 line on
+  // the top bar is painted, while its mirror below the line belongs to the
+  // side bar - both opaque, but the join exists rather than overlapping
+  var c1 = x.getImageData(5, 3, 1, 1).data;
+  var c2 = x.getImageData(3, 5, 1, 1).data;
+  chk('both sides of the mitre are painted', c1[3] === 255 && c2[3] === 255,
+    c1[3] + '/' + c2[3]);
+
+  // no stretching: every ratio produces its own geometry, and the opening
+  // always carries the ratio that was asked for
+  for (var i = 0; i < FF_RATIOS.length; i++) {
+    var id = FF_RATIOS[i].id;
+    var want = ffRatioValue(id, 'portrait');
+    var ob = ffRatioBox(id, 'portrait', 1200, 800, 0.62);
+    var bw = Math.max(3, Math.round(Math.min(ob.w, ob.h) * 0.075));
+    var built = ffBuildMitredFrame(sw, ob.w + bw * 2, ob.h + bw * 2, bw);
+    var got = built.opening.w / built.opening.h;
+    chk('opening keeps ratio at ' + id, Math.abs(got - want) / want < 0.01,
+      got.toFixed(4) + ' vs ' + want.toFixed(4));
+  }
+
+  // border is clamped so a fat border can never swallow the opening
+  var tiny = ffBuildMitredFrame(sw, 40, 40, 500);
+  chk('absurd border is clamped', tiny.opening.w > 0 && tiny.opening.h > 0,
+    JSON.stringify(tiny.opening));
+
+  // applying a design puts the overlay and its opening in register
+  var before = doc.layers.length;
+  ffSelectedRatio = '4-5';
+  var res = ffApplyFrameDesign({ ratioId: '4-5', orientation: 'portrait', designId: 'gold' });
+  chk('design applied', !!res);
+  chk('two layers added', doc.layers.length === before + 2, String(doc.layers.length - before));
+
+  var ov = doc.layers[doc.layers.length - 1];
+  chk('overlay ends up on top', ov.type === 'overlay', ov.type);
+  chk('overlay is locked', ov.locked === true);
+  chk('overlay carries a PNG', typeof ov.src === 'string' && ov.src.indexOf('data:image/png') === 0);
+
+  var fr = res.frame;
+  chk('opening frame recorded the ratio', fr.ratioId === '4-5', String(fr.ratioId));
+  var fb = bbox(fr.points);
+  chk('opening frame holds 4:5', Math.abs(fb.w / fb.h - 0.8) < 0.01, (fb.w / fb.h).toFixed(4));
+
+  // in register: the opening sits exactly inside the moulding
+  chk('opening is inside the overlay',
+    fb.x >= ov.x && fb.y >= ov.y &&
+    fb.x + fb.w <= ov.x + ov.w + 1 && fb.y + fb.h <= ov.y + ov.h + 1,
+    'frame ' + Math.round(fb.x) + ',' + Math.round(fb.y) + ' in overlay ' + ov.x + ',' + ov.y);
+  chk('moulding surrounds the opening on all sides',
+    Math.abs((fb.x - ov.x) - res.border) <= 1 &&
+    Math.abs((ov.x + ov.w) - (fb.x + fb.w) - res.border) <= 1 &&
+    Math.abs((fb.y - ov.y) - res.border) <= 1 &&
+    Math.abs((ov.y + ov.h) - (fb.y + fb.h) - res.border) <= 1,
+    'border=' + res.border);
+
+  doc.layers.length = before;
+  ffSelectedRatio = '';
+
+  chk('no runtime errors after presets and designs', window.__ffErrors.length === 0,
+    window.__ffErrors.join(' | '));
+}
+
 async function run() {
   try {
     testBundle();
@@ -885,6 +1037,8 @@ async function run() {
     await testExistingFeatures();
     await testMultiOpening();
     await testMultiOpeningPipelines();
+    testRatioPresets();
+    testFrameDesigns();
   } catch (error) {
     chk('suite completed without throwing', false, error && error.message);
   }
