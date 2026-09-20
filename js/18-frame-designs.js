@@ -58,7 +58,13 @@ function ffSwatchWood(base) {
   const c = _ffSwatchCanvas(), x = c.getContext('2d');
   x.fillStyle = base || '#96603A';
   x.fillRect(0, 0, c.width, c.height);
-  // grain runs down the swatch, i.e. along the bar once it is laid out
+  // NOTE: ffBuildBar maps the swatch's x axis ACROSS the thickness of the bar
+  // and its y axis ALONG the length, so a filled row like the ones below is a
+  // line across the bar, not along it. Probing a swatch with a single black
+  // row confirms it, and this swatch measures a lightness SD of 4.8 along the
+  // length against 0.0 across the thickness. So this is cross-grain banding,
+  // not long grain. Kept as-is because Oak, Walnut and Natural wood ship on
+  // it; ffSwatchTimber below is the one that runs the grain the right way.
   for (let y = 0; y < c.height; y++) {
     const g = Math.sin(y * 0.30) * 0.5 + Math.sin(y * 0.071 + 1.3) * 0.35 + Math.sin(y * 0.013) * 0.15;
     x.fillStyle = 'rgba(0,0,0,' + Math.max(0, -g * 0.10).toFixed(3) + ')';
@@ -83,6 +89,82 @@ function ffSwatchMaple(base) {
     x.fillStyle = 'rgba(255,245,228,' + Math.max(0, g * 0.045).toFixed(3) + ')';
     x.fillRect(0, y, c.width, 1);
   }
+  return c;
+}
+
+function ffSwatchTimber(opts) {
+  // Real long grain: continuous lines running down the length of the
+  // moulding. Because the swatch's x axis is what ends up crossing the
+  // thickness, the grain has to be drawn as vertical bands here, which is the
+  // opposite of ffSwatchWood above.
+  //
+  // That x axis is also squeezed from 256 into the thickness of the bar, so
+  // roughly 18:1 on a slim frame. Bands therefore have to be wide in swatch
+  // space or the downscale averages them away. The y axis is close to 1:1
+  // with the length, so detail along the bar survives and each band is given
+  // a slow wander rather than being ruler straight.
+  const o = opts || {};
+  const base = o.base || '#B08A52';
+  const lines = o.lines || 7;
+  const strength = (o.strength === undefined ? 1 : o.strength);
+
+  // Seeded, so a published frame PNG is reproducible rather than different on
+  // every render.
+  let sd = (o.seed || 7) >>> 0;
+  const rnd = () => ((sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296);
+
+  const c = _ffSwatchCanvas(), x = c.getContext('2d'), N = c.width;
+  x.fillStyle = base;
+  x.fillRect(0, 0, N, N);
+  const img = x.getImageData(0, 0, N, N), d = img.data;
+
+  const band = [];
+  for (let i = 0; i < lines; i++) {
+    // timber is a few crisp dark lines among broad faint ones, never a row of
+    // evenly spaced stripes
+    const crisp = (i % 3 === 0);
+    band.push({
+      pos: ((i + 0.5) / lines + (rnd() - 0.5) * 0.75 / lines) * N,
+      half: (crisp ? (0.10 + rnd() * 0.14) : (0.45 + rnd() * 0.60)) / lines * N,
+      dark: (crisp ? (0.26 + rnd() * 0.16) : (0.06 + rnd() * 0.09)),
+      amp: 4 + rnd() * 18,
+      freq: 0.004 + rnd() * 0.012,
+      phase: rnd() * 6.283
+    });
+  }
+
+  const washPh = rnd() * 6.283;
+  for (let y = 0; y < N; y++) {
+    const wash = Math.sin(y * 0.011 + washPh) * 0.020 + Math.sin(y * 0.0032 + washPh * 2) * 0.014;
+    for (let i = 0; i < lines; i++) {
+      const b = band[i];
+      const cx = b.pos + Math.sin(y * b.freq + b.phase) * b.amp;
+      const from = Math.max(0, Math.floor(cx - b.half));
+      const to = Math.min(N - 1, Math.ceil(cx + b.half));
+      for (let px = from; px <= to; px++) {
+        const t = 1 - Math.abs(px - cx) / b.half;
+        if (t <= 0) continue;
+        const a = b.dark * t * t * strength;   // squared, for a tighter core
+        const k = (y * N + px) * 4;
+        d[k] = d[k] * (1 - a) + 58 * a;
+        d[k + 1] = d[k + 1] * (1 - a) + 34 * a;
+        d[k + 2] = d[k + 2] * (1 - a) + 14 * a;
+      }
+    }
+    if (wash !== 0) {
+      // slow lightness wash, so the length of the bar is not one flat tone
+      const a = Math.abs(wash) * strength;
+      const wr = wash > 0 ? 255 : 40, wg = wash > 0 ? 244 : 24, wb = wash > 0 ? 226 : 8;
+      for (let px = 0; px < N; px++) {
+        const k = (y * N + px) * 4;
+        d[k] = d[k] * (1 - a) + wr * a;
+        d[k + 1] = d[k + 1] * (1 - a) + wg * a;
+        d[k + 2] = d[k + 2] * (1 - a) + wb * a;
+      }
+    }
+  }
+
+  x.putImageData(img, 0, 0);
   return c;
 }
 
@@ -112,6 +194,15 @@ const FF_BEVEL_FLAT = [
   [0.94, 'rgba(255,255,255,0.10)'],
   [1.00, 'rgba(255,255,255,0.34)']
 ];
+// Between the two: enough shading to read as a solid bar of wood with real
+// depth, without the rounded ornate sweep of CLASSIC.
+const FF_BEVEL_SOFT = [
+  [0.00, 'rgba(0,0,0,0.15)'],
+  [0.12, 'rgba(255,255,255,0.13)'],
+  [0.50, 'rgba(255,255,255,0.03)'],
+  [0.80, 'rgba(0,0,0,0.04)'],
+  [1.00, 'rgba(0,0,0,0.17)']
+];
 
 const FF_FRAME_DESIGNS = [
   { id: 'white',  label: 'White',       build: () => ffSwatchFlat('#FBFAF8') },
@@ -128,6 +219,16 @@ const FF_FRAME_DESIGNS = [
     lipInner: 'rgba(255,255,255,0.55)',
     lipOuter: 'rgba(0,0,0,0.10)',
     build: () => ffSwatchMaple('#E3C89B')
+  },
+  {
+    id: 'timber-oak', label: 'Solid oak',
+    // a solid timber moulding is chunky; it also needs the width, because the
+    // grain has nowhere to show on a slim face
+    borderPct: 7.0,
+    bevel: FF_BEVEL_SOFT,
+    lipInner: 'rgba(0,0,0,0.25)',
+    lipOuter: 'rgba(0,0,0,0.18)',
+    build: () => ffSwatchTimber({ base: '#B08A52' })
   }
 ];
 
