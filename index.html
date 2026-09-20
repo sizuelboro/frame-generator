@@ -161,6 +161,53 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 .tpl .nm{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hidden{display:none!important}
 
+/* ---------- toolbar groups ---------- */
+/* The topbar is grouped by workflow stage, not by a flat list of actions:
+   file · print size · detect · state · ship. */
+.grp{display:flex;align-items:center;gap:6px}
+
+/* Settings are state, not actions, so they must not read as buttons. */
+.setting{
+  display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 11px;
+  border:1px solid transparent;border-radius:999px;background:var(--soft2);
+  font-size:12.5px;font-weight:600;white-space:nowrap;color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+.setting:hover{background:#E6E4E1}
+.setting:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.menuwrap{position:relative;display:inline-flex}
+.menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:500;min-width:224px;
+  display:none;flex-direction:column;gap:1px;padding:6px;
+  background:var(--canvas);border:1px solid var(--border);border-radius:11px;
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 30px rgba(0,0,0,.13);
+}
+.menu.open{display:flex}
+.menu .btn{width:100%;justify-content:flex-start;border-color:transparent;background:transparent}
+.menu .btn:hover{background:var(--soft2)}
+.menu h3{
+  font-size:10.5px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--text2);padding:9px 10px 4px;
+}
+.menu h3:first-child{padding-top:4px}
+.caret{font-size:9px;color:var(--text2);margin-left:1px}
+
+/* ---------- stage empty state ---------- */
+.canvaswrap{position:relative}
+.estate{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:24px;pointer-events:none}
+.estate.gone{display:none}
+.ecard{
+  max-width:438px;text-align:center;pointer-events:auto;
+  background:rgba(255,255,255,.94);border:1px solid var(--border);border-radius:14px;
+  padding:26px 24px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px rgba(0,0,0,.07);
+}
+.ecard .eic{width:38px;height:38px;margin:0 auto 13px;display:block;color:var(--text2)}
+.ecard h3{font-size:16.5px;font-weight:650;letter-spacing:-.01em;margin-bottom:7px}
+.ecard p{font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:17px}
+.ecard .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.ecard .tip{margin-top:15px;font-size:11.5px;color:var(--text2)}
+.ecard .tip b{background:var(--soft2);border-radius:4px;padding:1px 5px;font-weight:600}
 @media (max-width:1100px){
   .body{flex-direction:column;overflow-y:auto}
   .panel,.panel.right{width:100%;flex-basis:auto;border:none;border-bottom:1px solid var(--border)}
@@ -188,36 +235,84 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
         <span>Mockup frame studio</span>
       </div>
     </div>
+
     <div class="sep"></div>
-    <button class="btn" id="btnNew">New</button>
-    <button class="btn" id="btnLoadJson">Open JSON</button>
-    <button class="btn" id="btnSaveJson">Save JSON</button>
+
+    <!-- File -->
+    <div class="grp">
+      <button class="btn" id="btnNew">New</button>
+      <button class="btn" id="btnLoadJson">Open JSON</button>
+      <button class="btn" id="btnSaveJson">Save JSON</button>
+      <button class="btn" id="btnSaveTpl">Save as mockup</button>
+    </div>
+
     <div class="sep"></div>
-    <button class="btn" id="btnSaveTpl">Save as mockup</button>
+
+    <!-- Print size first: step 0 of the creator workflow in README.md -->
+    <div class="grp">
+      <select class="btn" id="ratioPreset" title="Declare the print ratio of the opening. The ratio is recorded on the frame and checked when you import the AI scene."></select>
+      <button class="btn" id="btnRatioOrient" title="Portrait or landscape">Portrait</button>
+      <button class="btn" id="btnAddRatioFrame" title="Add a bare opening at the selected print ratio">Add opening</button>
+      <select class="btn" id="frameDesign" title="Generate a mitred frame at the selected ratio from a flat swatch. Adds the moulding and its matching opening together."></select>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Trace: the one-click path stays visible, the rest fold away -->
+    <div class="grp">
+      <button class="btn" id="btnPickOpening">Pick opening</button>
+      <div class="menuwrap">
+        <button class="btn" id="btnToolsMenu" aria-haspopup="menu" aria-expanded="false">Tools <span class="caret">&#9662;</span></button>
+        <div class="menu" id="menuTools" role="menu">
+          <h3>Detect</h3>
+          <button class="btn" id="btnAutoScreen">Auto screen</button>
+          <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
+          <button class="btn" id="btnRemoveBg">Remove bg</button>
+          <h3>Batch</h3>
+          <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk 100</button>
+          <h3>Library</h3>
+          <button class="btn" id="btnLibrarySettings">Library settings</button>
+        </div>
+      </div>
+    </div>
+
     <div class="spacer"></div>
-    <span class="pill" id="sizePill">1200 × 800</span>
-    <select class="btn" id="ratioPreset" title="Declare the print ratio of the opening. The ratio is recorded on the frame and checked when you import the AI scene."></select>
-    <button class="btn" id="btnRatioOrient" title="Portrait or landscape">Portrait</button>
-    <button class="btn" id="btnAddRatioFrame" title="Add a bare opening at the selected print ratio">Add opening</button>
-    <select class="btn" id="frameDesign" title="Generate a mitred frame at the selected ratio from a flat swatch. Adds the moulding and its matching opening together."></select>
-    <button class="btn" id="btnFitCanvas">Fit canvas</button>
-    <button class="btn" id="btnLibrarySettings">Library settings</button>
-    <button class="btn primary" id="btnPublishCloud">Publish to Canva Dev</button>
-    <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk 100</button>
-    <button class="btn" id="btnAutoScreen">Auto screen</button>
-    <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
-    <button class="btn" id="btnPickOpening">Pick opening</button>
-    <button class="btn" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
-    <button class="btn" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
-    <button class="btn" id="btnRemoveBg">Remove bg</button>
-    <button class="btn" id="btnCanvaPdf">Canva frame PDF</button>
-    <button class="btn" id="btnMockupPdf">Canva mockup PDF</button>
-    <button class="btn" id="btnBundleAdd">+ Bundle</button>
-    <button class="btn" id="btnBundleExport">Bundle PDF</button>
-    <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt">Export for AI</button>
-    <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
-    <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
-    <button class="btn primary" id="btnExport">Export PNG</button>
+
+    <!-- State, not actions -->
+    <div class="grp">
+      <span class="pill" id="sizePill">1200 &#215; 800</span>
+      <button class="btn" id="btnFitCanvas">Fit canvas</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="grp">
+      <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
+      <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Ship. One primary action: publishing is what makes a sellable frame. -->
+    <div class="grp">
+      <div class="menuwrap">
+        <button class="btn" id="btnExportMenu" aria-haspopup="menu" aria-expanded="false">Export <span class="caret">&#9662;</span></button>
+        <div class="menu" id="menuExport" role="menu">
+          <h3>Image</h3>
+          <button class="btn" id="btnExport">Export PNG</button>
+          <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
+          <h3>PDF</h3>
+          <button class="btn" id="btnCanvaPdf">Canva frame PDF</button>
+          <button class="btn" id="btnMockupPdf">Canva mockup PDF</button>
+          <button class="btn" id="btnBundleAdd">+ Bundle</button>
+          <button class="btn" id="btnBundleExport">Bundle PDF</button>
+          <h3>AI scene round trip</h3>
+          <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt">Export for AI</button>
+          <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
+        </div>
+      </div>
+      <button class="btn primary" id="btnPublishCloud">Publish to Canva Dev</button>
+    </div>
   </header>
 
   <div class="body">
@@ -281,6 +376,18 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
         <button class="btn sm" id="zoomFit">Fit</button>
       </div>
       <div class="canvaswrap" id="wrap">
+        <div class="estate" id="emptyState">
+          <div class="ecard">
+            <svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="7" y="8.5" width="10" height="7" rx="1" stroke-dasharray="2.5 2"/></svg>
+            <h3>Pick a print size, or open a mockup photo</h3>
+            <p>Add the opening at the ratio you are selling, then choose a frame design. Already have a mockup photograph? Add it as an overlay and trace the opening instead.</p>
+            <div class="acts">
+              <button class="btn primary" id="esAddOpening">Add opening</button>
+              <button class="btn" id="esAddOverlay">Add mockup overlay</button>
+            </div>
+            <div class="tip">Rect frame <b>R</b> &#183; Perspective <b>P</b> &#183; Text <b>T</b> &#183; Shape <b>S</b></div>
+          </div>
+        </div>
         <div class="board" id="board">
           <canvas id="cv"></canvas>
           <div class="hint" id="hint"></div>
@@ -316,6 +423,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 <script src="js/15-mockup-pdf.js"></script><!-- whole-mockup PDF -->
 <script src="js/16-build-info.js"></script><!-- build marker -->
 <script src="js/17-ratio-presets.js"></script><!-- print-size ratio presets -->
-<script src="js/18-frame-designs.js"></script><!-- generated mitred frame designs, loaded last -->
+<script src="js/18-frame-designs.js"></script><!-- generated mitred frame designs -->
+<script src="js/19-toolbar.js"></script><!-- toolbar menus + stage empty state, loaded last -->
 </body>
 </html>
