@@ -107,6 +107,10 @@ function ffSwatchTimber(opts) {
   const base = o.base || '#B08A52';
   const lines = o.lines || 7;
   const strength = (o.strength === undefined ? 1 : o.strength);
+  // How strongly the length of the bar drifts in lightness. A photographed
+  // board varies far more along its length than the default here suggests,
+  // so a design can dial this up; 1 keeps the original look.
+  const washMul = (o.wash === undefined ? 1 : o.wash);
 
   // Seeded, so a published frame PNG is reproducible rather than different on
   // every render.
@@ -135,7 +139,7 @@ function ffSwatchTimber(opts) {
 
   const washPh = rnd() * 6.283;
   for (let y = 0; y < N; y++) {
-    const wash = Math.sin(y * 0.011 + washPh) * 0.020 + Math.sin(y * 0.0032 + washPh * 2) * 0.014;
+    const wash = (Math.sin(y * 0.011 + washPh) * 0.020 + Math.sin(y * 0.0032 + washPh * 2) * 0.014) * washMul;
     for (let i = 0; i < lines; i++) {
       const b = band[i];
       const cx = b.pos + Math.sin(y * b.freq + b.phase) * b.amp;
@@ -153,7 +157,7 @@ function ffSwatchTimber(opts) {
     }
     if (wash !== 0) {
       // slow lightness wash, so the length of the bar is not one flat tone
-      const a = Math.abs(wash) * strength;
+      const a = Math.min(0.6, Math.abs(wash) * strength);
       const wr = wash > 0 ? 255 : 40, wg = wash > 0 ? 244 : 24, wb = wash > 0 ? 226 : 8;
       for (let px = 0; px < N; px++) {
         const k = (y * N + px) * 4;
@@ -203,6 +207,16 @@ const FF_BEVEL_SOFT = [
   [0.80, 'rgba(0,0,0,0.04)'],
   [1.00, 'rgba(0,0,0,0.17)']
 ];
+// Fitted to the reference frame PNG rather than chosen by eye: across its
+// 47px bar the face spans 32 levels of lightness, so this is a touch flatter
+// again than SOFT.
+const FF_BEVEL_TIMBER = [
+  [0.00, 'rgba(0,0,0,0.12)'],
+  [0.12, 'rgba(255,255,255,0.11)'],
+  [0.50, 'rgba(255,255,255,0.03)'],
+  [0.80, 'rgba(0,0,0,0.03)'],
+  [1.00, 'rgba(0,0,0,0.13)']
+];
 
 const FF_FRAME_DESIGNS = [
   { id: 'white',  label: 'White',       build: () => ffSwatchFlat('#FBFAF8') },
@@ -229,6 +243,19 @@ const FF_FRAME_DESIGNS = [
     lipInner: 'rgba(0,0,0,0.25)',
     lipOuter: 'rgba(0,0,0,0.18)',
     build: () => ffSwatchTimber({ base: '#B08A52' })
+  },
+  {
+    id: 'oak-natural', label: 'Natural oak',
+    // Every number here is fitted to a reference frame PNG rather than
+    // picked by eye. Measured on its 47px bar: opening border 6.48%, face
+    // #DCBC9A at lightness 187, 30% saturation, spanning 32 levels, with a
+    // lightness SD of 7.3 across the thickness and 5.3 along the length.
+    // This design renders 184 / 30.3% / 35 / 8.0 / 5.3 against that.
+    borderPct: 6.5,
+    bevel: FF_BEVEL_TIMBER,
+    lipInner: 'rgba(0,0,0,0.25)',
+    lipOuter: 'rgba(0,0,0,0.18)',
+    build: () => ffSwatchTimber({ base: '#DEBE9C', lines: 10, strength: 0.75, wash: 5.5 })
   }
 ];
 
