@@ -196,6 +196,10 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
     <button class="btn" id="btnSaveTpl">Save as mockup</button>
     <div class="spacer"></div>
     <span class="pill" id="sizePill">1200 × 800</span>
+    <select class="btn" id="ratioPreset" title="Declare the print ratio of the opening. The ratio is recorded on the frame and checked when you import the AI scene."></select>
+    <button class="btn" id="btnRatioOrient" title="Portrait or landscape">Portrait</button>
+    <button class="btn" id="btnAddRatioFrame" title="Add a bare opening at the selected print ratio">Add opening</button>
+    <select class="btn" id="frameDesign" title="Generate a mitred frame at the selected ratio from a flat swatch. Adds the moulding and its matching opening together."></select>
     <button class="btn" id="btnFitCanvas">Fit canvas</button>
     <button class="btn" id="btnLibrarySettings">Library settings</button>
     <button class="btn primary" id="btnPublishCloud">Publish to Canva Dev</button>
@@ -310,6 +314,8 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 <script src="js/13-scene.js"></script><!-- scene plate and colour key -->
 <script src="js/14-wand.js"></script><!-- magic wand opening -->
 <script src="js/15-mockup-pdf.js"></script><!-- whole-mockup PDF -->
-<script src="js/16-build-info.js"></script><!-- build marker, loaded last -->
+<script src="js/16-build-info.js"></script><!-- build marker -->
+<script src="js/17-ratio-presets.js"></script><!-- print-size ratio presets -->
+<script src="js/18-frame-designs.js"></script><!-- generated mitred frame designs, loaded last -->
 </body>
 </html>
