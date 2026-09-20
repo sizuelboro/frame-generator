@@ -1,0 +1,68 @@
+name: CI
+
+# The guards in package.json only ever ran when someone remembered to run
+# them. Run them here instead: every push to main, and every pull request
+# before it can be merged.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # matches engines.node in package.json
+          node-version: 22
+          # no cache: the project has no dependencies and no lock file
+
+      # There is deliberately no install step. package.json declares no
+      # dependencies and no devDependencies, and every tool under tools/ runs
+      # on Node builtins alone, so npm ci would only fail for want of a lock
+      # file.
+
+      - name: Resolve a headless browser
+        # tools/test-studio.mjs spawns `chromium` unless CHROME_BIN is set.
+        # GitHub's Ubuntu runners ship Google Chrome but not reliably a binary
+        # called chromium, which is the same reason the suite cannot find one
+        # on Windows. Resolve whatever is actually here and hand it over.
+        run: |
+          for candidate in \
+            "$CHROME_PATH" \
+            /usr/bin/google-chrome \
+            /usr/bin/google-chrome-stable \
+            /usr/bin/chromium \
+            /usr/bin/chromium-browser
+          do
+            if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+              echo "CHROME_BIN=$candidate" >> "$GITHUB_ENV"
+              echo "Using $candidate"
+              "$candidate" --version || true
+              exit 0
+            fi
+          done
+          echo "::error::No Chrome or Chromium binary found on this runner"
+          exit 1
+
+      - name: Generate the deploy mirror
+        # repo/ is generated and is not tracked, so a fresh clone has none and
+        # check:deploy inside npm test would report every file missing.
+        #
+        # Worth being clear about what this costs: because CI regenerates the
+        # mirror, it cannot catch a mirror left stale on someone's machine. It
+        # only proves the generator still agrees with the root. Pointing
+        # Cloudflare Pages at the root would retire repo/ and this step with
+        # it.
+        run: npm run sync:deploy
+
+      - name: Run the full suite
+        # build:limits, check:limits, check:order, check:deploy, test:worker,
+        # test:compat, test:studio
+        run: npm test
