@@ -1,6 +1,6 @@
 {
   "name": "frameforge",
-  "version": "7.5.1",
+  "version": "7.6.0",
   "private": true,
   "type": "module",
   "description": "FrameForge - Studio, Cloudflare Worker library and Canva app for native Canva mockup frames",
@@ -13,8 +13,9 @@
     "test:studio": "node tools/test-studio.mjs",
     "test:compat": "node tools/test-compat.mjs",
     "test:naming": "node tools/test-publish-naming.mjs",
+    "test:psd": "node tools/test-psd-export.mjs",
     "sync:deploy": "node tools/sync-deploy.mjs",
-    "test": "npm run build:limits && npm run check:limits && npm run check:order && npm run check:deploy && npm run test:worker && npm run test:compat && npm run test:naming && npm run test:studio"
+    "test": "npm run build:limits && npm run check:limits && npm run check:order && npm run check:deploy && npm run test:worker && npm run test:compat && npm run test:naming && npm run test:psd && npm run test:studio"
   },
   "engines": {
     "node": "^22 || ^24"

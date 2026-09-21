@@ -4,7 +4,7 @@ Turn a mockup image into a **native Canva frame** — a real Canva shape with a
 `dropTarget` path. The buyer needs nothing installed, and the element behaves
 like any other Canva frame.
 
-Version **7.5.0**. See [CHANGELOG.md](CHANGELOG.md).
+Version **7.6.0**. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Layout
 
@@ -16,7 +16,7 @@ Version **7.5.0**. See [CHANGELOG.md](CHANGELOG.md).
 | `shared/frameforge-limits.js` | **Single source of truth** for Canva platform limits. |
 | `tools/` | Limits generator, drift guards, deploy sync, test runners. |
 | `tests/` | Studio browser suite. |
-| `docs/` | Architecture, deploy, cloud library, buyer checklist, validation. |
+| `docs/` | Architecture, deploy, cloud library, PSD export, buyer checklist, validation. |
 | `docs/archive/` | Superseded release notes. History only — do not treat as current. |
 | `mockups/` | Sample overlay and thumbnail assets. |
 | `repo/` | **Generated** Cloudflare Pages deploy mirror. Never edit by hand. |
@@ -120,6 +120,38 @@ which is exactly how a "US Letter" opening (0.773) ends up sold as A4 (0.707).
    (`Floral Arch 2`), and the dialog tells you before you publish.
 5. **Refresh library** in the Canva app.
 6. Insert a **new** copy to test — already-inserted elements never update.
+
+## Photoshop PSD export
+
+**Export ▾ · Photoshop PSD (.psd)** writes the mockup as a layered Photoshop
+file with the opening as a **smart object**, so a buyer double-clicks one
+layer, drops their artwork in and Photoshop re-applies the corner pin itself.
+
+```
+FrameForge Mockup.psd          RGB, 8-bit, RLE compressed
+├─ Mockup overlay              normal
+├─ Shadow                      multiply, at the layer's own opacity
+├─ YOUR DESIGN — double-click to replace   smart object, corner-pinned
+├─ Scene                       image, shape and text layers, when present
+└─ Background                  white, or omitted for a transparent document
+```
+
+This is the one thing Canva frames cannot do: Canva clips a dropped image to
+the path but cannot keystone it, so an opening photographed at an angle still
+looks flat. Photoshop pins the four corners, so the same perspective opening
+reads correctly.
+
+- Rect and perspective openings both export; the corners written into the file
+  are the opening's own points, not a bounding box.
+- An opening that cannot be corner-pinned (zero area, a collapsed edge) is
+  exported as a **pre-warped pixel layer** and named as flattened, and the
+  toast says how many. A wrong file is never written silently.
+- The placeholder art inside the smart object is either the built-in
+  "YOUR DESIGN" card or the artwork currently in the frame.
+- Publishing, the Worker, the Canva app, detection, bleed and shadow are not
+  touched by this path.
+
+Details and the byte layout: [docs/psd-export.md](docs/psd-export.md).
 
 ## Silhouette frames
 

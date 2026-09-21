@@ -13,6 +13,53 @@ Reference material that is not version history lives in `docs/`.
 
 ---
 
+## 7.6.0
+
+Native Photoshop PSD export. Studio only: publishing, the Worker, the Canva
+app, detection, bleed and shadow are unchanged, and no existing script moved.
+
+### Added
+
+- **`Export ▾ · Photoshop PSD (.psd)`.** The mockup is written as a real
+  layered PSD - RGB, 8-bit, PackBits compressed - with the opening as a
+  **smart object**. The buyer double-clicks that one layer, drops artwork in,
+  and Photoshop re-applies the corner pin. This covers the gap Canva cannot:
+  Canva clips a dropped image to the path but cannot keystone it, so an
+  opening shot at an angle looks flat inside a native Canva frame.
+- **Corner-pinned openings.** The four opening points are written into both
+  `SoLd` (placed layer data) and `PlLd`, and the embedded PNG goes into the
+  document-level `lnk2` block, so a perspective opening lands correctly rather
+  than as a bounding box.
+- **`js/20-psd-export.js`.** Appended to the ordered bundle, loaded after
+  `19-toolbar.js`. Everything between the `psd-core` markers is pure - no DOM,
+  no canvas, no Studio state - so it can be evaluated and its output parsed
+  back outside the browser.
+- **`npm run test:psd`** (137 checks, part of `npm test`). It lifts the real
+  writer out of the bundle into a bare VM context and parses every file it
+  builds back out of the bytes: header fields, layer records, blend keys,
+  channel lengths, Unicode names, the smart-object descriptors, the corner
+  transform to within 0.01, the embedded PNG signature, a PackBits round trip
+  on random and worst-case data, and degenerate input - 1x1 documents, a
+  one-pixel-wide layer, a fully transparent layer, a zero-area layer and a
+  document with no layers at all.
+
+### Notes
+
+- An opening that cannot be corner-pinned - zero area, a collapsed edge, a
+  non-finite point - is exported as a pre-warped pixel layer, named as
+  flattened, and counted in the toast. It is never written as a smart object
+  that Photoshop would place wrongly, and it is never silently wrong, matching
+  how `unbridgedHoles` is reported at publish time.
+- The whole handler runs inside `try`/`catch`. A PSD failure reports itself in
+  a toast and leaves the rest of the Studio running.
+- The document is assembled in memory. Above 12 MP the export warns before it
+  starts, and a canvas wider or taller than 30,000px is refused, because
+  Photoshop cannot open one.
+- Out of scope on purpose: PSD **import**, layer effects, adjustment layers,
+  CMYK, 16-bit and externally linked (non-embedded) smart objects.
+
+---
+
 ## 7.5.1
 
 Publishing a single frame can no longer destroy an existing one. Studio only;
