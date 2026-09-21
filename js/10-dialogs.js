@@ -66,7 +66,14 @@ function uiModal(opts) {
    password masking, and is blocked outright in several embedded viewers.
    uiForm replaces every remaining prompt() in the Studio.
 
-   fields: [{ name, label, value, type, placeholder, hint, min, max, step }]
+   fields: [{ name, label, value, type, placeholder, hint, liveHint, min, max, step }]
+
+   liveHint(value) is optional and runs while the field is being typed in,
+   debounced, and may be async. It returns null or { text, tone } where tone
+   is 'ok' | 'warn' | 'error'. It is advisory only: it never blocks submit,
+   which is still decided by validate(). Publish uses it to say whether a
+   frame name is already taken in the cloud library.
+
    Resolves to an object keyed by field name, or null when cancelled. */
 function uiForm(opts) {
   return new Promise((resolve) => {
@@ -97,6 +104,7 @@ function uiForm(opts) {
     error.setAttribute('role', 'alert');
     card.appendChild(error);
 
+    const timers = [];
     const inputs = [];
     fields.forEach((f, index) => {
       const wrap = document.createElement('label');
@@ -122,6 +130,31 @@ function uiForm(opts) {
         hint.textContent = f.hint;
         wrap.appendChild(hint);
       }
+
+      if (typeof f.liveHint === 'function') {
+        const live = document.createElement('span');
+        live.style.cssText = 'font-size:11px;font-weight:400;min-height:15px';
+        live.setAttribute('aria-live', 'polite');
+        wrap.appendChild(live);
+        const tones = { ok: '#1f6f43', warn: '#8a5a00', error: '#8d2b20' };
+        let run = 0;
+        // Only the newest answer may paint: an async check that resolves late
+        // would otherwise describe a name the user has already edited away.
+        const update = async () => {
+          const seq = ++run;
+          let result = null;
+          try { result = await f.liveHint(input.value.trim()); } catch (e) { result = null; }
+          if (seq !== run || !live.isConnected) return;
+          live.textContent = result && result.text ? result.text : '';
+          live.style.color = tones[(result && result.tone) || 'ok'] || tones.ok;
+        };
+        input.oninput = () => {
+          clearTimeout(timers[index]);
+          timers[index] = setTimeout(update, f.liveHintDelay == null ? 250 : f.liveHintDelay);
+        };
+        setTimeout(update, 0);
+      }
+
       card.appendChild(wrap);
       inputs.push(input);
       if (index === 0) setTimeout(() => { input.focus(); input.select(); }, 0);
@@ -142,7 +175,7 @@ function uiForm(opts) {
     row.appendChild(cancel); row.appendChild(ok);
     card.appendChild(row);
 
-    const done = (v) => { document.removeEventListener('keydown', onKey, true); back.remove(); resolve(v); };
+    const done = (v) => { timers.forEach(clearTimeout); document.removeEventListener('keydown', onKey, true); back.remove(); resolve(v); };
     const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); done(null); } };
     cancel.onclick = () => done(null);
     back.onmousedown = (e) => { if (e.target === back) done(null); };
