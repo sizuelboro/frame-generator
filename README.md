@@ -115,7 +115,9 @@ which is exactly how a "US Letter" opening (0.773) ends up sold as A4 (0.707).
    fixed amount — overlay opacity is measured per opening vertex and thin
    borders get less automatically.
 3. **Fit canvas.**
-4. **Publish to Canva Dev.** Reusing a name replaces that cloud entry.
+4. **Publish to Canva Dev.** Every publish creates a new entry; an existing
+   frame is never replaced. A name that is already taken is numbered
+   (`Floral Arch 2`), and the dialog tells you before you publish.
 5. **Refresh library** in the Canva app.
 6. Insert a **new** copy to test — already-inserted elements never update.
 
