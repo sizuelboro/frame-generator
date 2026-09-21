@@ -430,7 +430,40 @@ function cloudFolderPicker(data,config){return new Promise(resolve=>{
   const create=async()=>{const name=field.value.trim();if(!name)return;error.textContent='';add.disabled=true;add.textContent='Creating…';try{const response=await fetch(config.base+'/api/folders',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify({name})}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);if(!result.folder||!result.folder.id)throw new Error('Worker did not return the created folder');folders=Array.isArray(result.folders)?result.folders:[...folders,result.folder];selectedId=result.folder.id;field.value='';fieldRow.classList.remove('show');newButton.style.display='';render()}catch(e){error.textContent=String(e.message||e)}finally{add.disabled=false;add.textContent='Create'}};
   add.onclick=create;field.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();create()}};render();setTimeout(()=>{const active=list.querySelector('.selected');if(active)active.focus();else list.querySelector('button')?.focus()},0);
 })}
-async function cloudChooseFolder(config){const data=await cloudLibraryData(config);if(data.folderSystem!==true)throw new Error('Worker v7.0 is required for folders');return cloudFolderPicker(data,config)}
+/* preloaded lets a caller reuse a manifest it already fetched, so publishing
+   reads /api/frames once for both the name check and this picker. */
+async function cloudChooseFolder(config,preloaded){const data=preloaded||await cloudLibraryData(config);if(data.folderSystem!==true)throw new Error('Worker v7.0 is required for folders');return cloudFolderPicker(data,config)}
+
+/* ---------------- publish names never replace an existing entry ----------------
+   The Worker keys an entry on slug(id || name), so re-publishing a name that
+   already exists used to overwrite that entry in place and orphan the assets
+   the old one was still using. A mistyped or repeated name silently destroyed
+   published work. Publishing is now create-only and a busy name is numbered
+   instead - "Floral Arch", "Floral Arch 2", "Floral Arch 3" - so everything
+   ever published stays reachable in the Canva app. Bulk publish has always
+   worked this way; these helpers mirror bulkSlug/bulkUniqueName for the
+   single-frame path, which keeps the full 120-character name limit. */
+const FF_PUBLISH_NAME_MAX = 120;
+function cloudPublishSlug(value) {
+  return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+}
+function cloudUniquePublishName(base, usedSlugs) {
+  const clip = v => String(v).slice(0, FF_PUBLISH_NAME_MAX).trim();
+  const wanted = clip(String(base || '').trim()) || 'New Mockup Frame';
+  if (!usedSlugs.has(cloudPublishSlug(wanted))) return wanted;
+  // "Arch 2" must become "Arch 3", not "Arch 2 2".
+  const numbered = wanted.match(/^(.*\S)\s+(\d+)$/);
+  let root = wanted, next = 2;
+  if (numbered && cloudPublishSlug(numbered[1])) { root = numbered[1]; next = Number(numbered[2]) + 1; }
+  for (let n = next; n < next + 500; n++) {
+    const suffix = ' ' + n;
+    const candidate = clip(root.slice(0, Math.max(1, FF_PUBLISH_NAME_MAX - suffix.length)).trim() + suffix);
+    if (!usedSlugs.has(cloudPublishSlug(candidate))) return candidate;
+  }
+  const stamp = ' ' + new Date().toISOString().slice(0, 10) + '-' + String(Date.now()).slice(-4);
+  return clip(root.slice(0, Math.max(1, FF_PUBLISH_NAME_MAX - stamp.length)).trim() + stamp);
+}
+const FF_PUBLISH_RETRIES = 6;
 $('#btnPublishCloud').onclick = async () => {
   const all=doc.layers.filter(l=>l.visible&&l.type==='frame'),chosen=sel?layer(sel):null;
   const silhouettes=all.filter(f=>f.publishMode==='silhouette'),overlays=doc.layers.filter(l=>l.visible&&l.type==='overlay');
@@ -438,8 +471,24 @@ $('#btnPublishCloud').onclick = async () => {
   const frames=silhouetteMode?[chosen&&chosen.publishMode==='silhouette'?chosen:silhouettes[0]]:all.filter(f=>f.publishMode!=='silhouette');
   if(!frames.length){toast('Create or select a frame first');return}if(!silhouetteMode&&!overlays.length){toast('Add a transparent overlay, or select a Silhouette Frame');return}
   const config=await cloudLibraryConfig(false);if(!config)return;
-  const named=await uiForm({title:'Publish to Canva Dev library',message:'Publishing with an existing name replaces that cloud entry.',confirmLabel:'Publish',fields:[{name:'name',label:'Name shown in the Canva app',value:localStorage.getItem('frameforge.lastPublishName')||'New Mockup Frame',placeholder:'Floral Arch 01',hint:'Reuse the exact name to update a frame you already published.'}],validate:v=>v.name.trim()?null:'Enter a name for this frame.'});
-  if(!named)return;const name=named.name.trim();localStorage.setItem('frameforge.lastPublishName',name);let folder;try{folder=await cloudChooseFolder(config)}catch(e){toast('Folder error: '+String(e.message||e));return}if(!folder)return;
+  /* One manifest read powers the live name check and the folder picker. A
+     failed read is not fatal: the Worker is the real guard, because the
+     publish below is create-only. */
+  let library=null,libraryError=null;
+  try{library=await cloudLibraryData(config)}catch(e){libraryError=e}
+  const existing=new Map();
+  if(library&&Array.isArray(library.frames))for(const entry of library.frames){const key=cloudPublishSlug(entry.id||entry.name);if(key&&!existing.has(key))existing.set(key,entry)}
+  const usedSlugs=new Set(existing.keys());
+  const named=await uiForm({title:'Publish to Canva Dev library',message:'A new library entry is always created. An existing frame is never replaced.',confirmLabel:'Publish',fields:[{name:'name',label:'Name shown in the Canva app',value:localStorage.getItem('frameforge.lastPublishName')||'New Mockup Frame',placeholder:'Floral Arch 01',hint:'A name that is already taken is numbered automatically, so the older frame stays in the library.',liveHint:value=>{
+    if(!value)return null;
+    if(libraryError)return{text:'Could not read the library · publishing still never replaces an entry.',tone:'warn'};
+    if(!cloudPublishSlug(value))return{text:'Use at least one letter or number.',tone:'error'};
+    const hit=existing.get(cloudPublishSlug(value));
+    if(!hit)return{text:'✓ Free · this creates a new entry.',tone:'ok'};
+    const when=hit.updatedAt?new Date(hit.updatedAt).toLocaleDateString():'';
+    return{text:`⚠ “${hit.name}” already exists${when?' · '+when:''} · this publishes as “${cloudUniquePublishName(value,usedSlugs)}” and keeps the old one.`,tone:'warn'};
+  }}],validate:v=>!v.name.trim()?'Enter a name for this frame.':(cloudPublishSlug(v.name)?null:'Use at least one letter or number in the name.')});
+  if(!named)return;const name=named.name.trim();localStorage.setItem('frameforge.lastPublishName',name);let folder;try{folder=await cloudChooseFolder(config,library)}catch(e){toast('Folder error: '+String(e.message||e));return}if(!folder)return;
   const alphaMap=silhouetteMode?null:makeOverlayAlphaMap();if(!silhouetteMode&&!alphaMap&&ffOpeningBleed>0)toast('Overlay alpha could not be inspected · publishing without bleed');
   const paths=frames.flatMap(f=>silhouetteMode?((f.pathDs&&f.pathDs.length)?f.pathDs:[f.pathD||framePath(f.points,true)]):[framePath(openingWithBleed(f.points,ffOpeningBleed,alphaMap),false)]).filter(Boolean),overlayPath=silhouetteMode?'':`M 0 0 H ${doc.canvas.w} V ${doc.canvas.h} H 0 Z`,multiElement=!!(silhouetteMode&&frames[0].multiElement&&paths.length>1),smartMask=!!(silhouetteMode&&frames[0].smartMask&&frames[0].smartMaskDataUrl);
   const byteSizes=paths.map(p=>new TextEncoder().encode(p).length),bytes=new TextEncoder().encode([overlayPath,...paths].join('')).length,total=paths.length+(silhouetteMode?0:1);
@@ -460,5 +509,21 @@ $('#btnPublishCloud').onclick = async () => {
   else if(tracedHoles>0)toast(`${tracedHoles} enclosed hole(s) bridged and verified`);
   if(!smartMask&&(paths.length>maxPaths||overBudget)){toast(multiElement?`Native Canva path budget exceeded: largest object is ${Math.max(...byteSizes)}/${FF_PATH_BUDGET} safe bytes across ${paths.length}/${maxPaths} objects · simplify the artwork`:`Native Canva path budget exceeded: ${bytes}/${FF_PATH_BUDGET} safe bytes · simplify the artwork`);return}
   const button=$('#btnPublishCloud'),text=button.textContent;button.disabled=true;button.textContent='Publishing…';
-  try{const off=silhouetteMode?silhouetteThumbnail(frames):exportCanvas({scale:2,only:['overlay','shadow'],bg:false});const blank=silhouetteMode?silhouetteTransparentOverlay():null,overlayImageData=silhouetteMode?(frames[0].detailOverlayDataUrl||(blank&&blank.toDataURL('image/png'))):undefined;const response=await fetch(config.base+'/api/frames',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify({mode:smartMask?'smart-mask':(silhouetteMode?'silhouette':'overlay'),name:name.trim(),folderId:folder.id,w:doc.canvas.w,h:doc.canvas.h,assetWidth:silhouetteMode?doc.canvas.w:off.width,assetHeight:silhouetteMode?doc.canvas.h:off.height,paths:smartMask?[]:paths,multiElement:smartMask?false:multiElement,unbridgedHoles:smartMask?0:unbridgedHoles,smartMask,maskImageData:smartMask?frames[0].smartMaskDataUrl:undefined,imageData:off.toDataURL('image/png'),overlayImageData})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);toast(`${name.trim()} published to ${folder.name} as ${silhouetteMode?(multiElement?('exact multi-element silhouette · '+paths.length+' aligned frames'):(frames[0].detailOverlayDataUrl?'smart silhouette + detail overlay':'one silhouette drop target')):'overlay frame'} · ${result.count} frame(s) in library`)}catch(e){toast('Publish failed: '+String(e.message||e))}finally{button.disabled=false;button.textContent=text}
+  try{const off=silhouetteMode?silhouetteThumbnail(frames):exportCanvas({scale:2,only:['overlay','shadow'],bg:false});const blank=silhouetteMode?silhouetteTransparentOverlay():null,overlayImageData=silhouetteMode?(frames[0].detailOverlayDataUrl||(blank&&blank.toDataURL('image/png'))):undefined;
+    const payload={mode:smartMask?'smart-mask':(silhouetteMode?'silhouette':'overlay'),name:cloudUniquePublishName(name,usedSlugs),folderId:folder.id,createOnly:true,w:doc.canvas.w,h:doc.canvas.h,assetWidth:silhouetteMode?doc.canvas.w:off.width,assetHeight:silhouetteMode?doc.canvas.h:off.height,paths:smartMask?[]:paths,multiElement:smartMask?false:multiElement,unbridgedHoles:smartMask?0:unbridgedHoles,smartMask,maskImageData:smartMask?frames[0].smartMaskDataUrl:undefined,imageData:off.toDataURL('image/png'),overlayImageData};
+    let response=null,result={};
+    /* createOnly means the Worker answers 409 instead of overwriting. Another
+       tab or a stale manifest can take a name between the check and the POST,
+       so take the next free number and try again rather than failing. */
+    for(let attempt=0;attempt<FF_PUBLISH_RETRIES;attempt++){
+      response=await fetch(config.base+'/api/frames',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+config.token},body:JSON.stringify(payload)});
+      result=await response.json().catch(()=>({}));
+      if(response.status===429){const waitMs=Math.min(90000,(Number(response.headers.get('retry-after'))||60)*1000);toast(`Worker rate limit reached · retrying “${payload.name}” in ${Math.ceil(waitMs/1000)}s`);await new Promise(r=>setTimeout(r,waitMs));continue}
+      if(response.status===409&&result.code==='NAME_EXISTS'){usedSlugs.add(cloudPublishSlug(payload.name));payload.name=cloudUniquePublishName(name,usedSlugs);continue}
+      break;
+    }
+    if(!response||!response.ok)throw new Error(result.error||`HTTP ${response?response.status:'error'}`);
+    if(response.status!==201)throw new Error('Worker did not confirm a no-overwrite create');
+    const renamed=payload.name!==name;
+    toast(`${payload.name} published to ${folder.name}${renamed?` · “${name}” was taken, that frame was left untouched`:''} as ${silhouetteMode?(multiElement?('exact multi-element silhouette · '+paths.length+' aligned frames'):(frames[0].detailOverlayDataUrl?'smart silhouette + detail overlay':'one silhouette drop target')):'overlay frame'} · ${result.count} frame(s) in library`)}catch(e){toast('Publish failed: '+String(e.message||e))}finally{button.disabled=false;button.textContent=text}
 };
