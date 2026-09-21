@@ -13,6 +13,58 @@ Reference material that is not version history lives in `docs/`.
 
 ---
 
+## 7.5.1
+
+Publishing a single frame can no longer destroy an existing one. Studio only;
+the Worker and the Canva app are unchanged.
+
+### Fixed
+
+- **Publishing with a name that was already taken replaced that cloud entry.**
+  `Publish to Canva Dev` posted without `createOnly`, so the Worker matched on
+  the name slug and overwrote the stored frame, its paths and its assets. A
+  typo, or simply forgetting that `Floral Arch` had been published last week,
+  destroyed the older frame with no warning and no undo - and any Canva
+  element already inserted from it kept pointing at the replaced assets.
+  Single publish now sends `createOnly: true`, exactly like Bulk 100, so the
+  Worker refuses to overwrite and the Studio publishes under a free name
+  instead. Only a `201 Created` is accepted as success.
+
+### Added
+
+- **Automatic numbering on collision.** A taken name is published as the next
+  free number - `Floral Arch` becomes `Floral Arch 2`, and `Floral Arch 2`
+  becomes `Floral Arch 3` rather than `Floral Arch 2 2`. Numbering matches the
+  slug rules the Worker uses, fills gaps, and clips the base name before
+  appending the suffix so the result stays inside the 120-character limit.
+  The success toast names the entry that was created and says the existing
+  frame was kept.
+- **Live name check in the publish dialog.** `uiForm` fields accept an
+  optional `liveHint(value)` callback, debounced and safe against out-of-order
+  async answers. The publish dialog uses it to show `Free - a new entry will
+  be created` or `"Floral Arch" already exists - this publishes as "Floral
+  Arch 2"` while you type, so the rename is never a surprise. If the library
+  cannot be read the hint degrades to a warning; it never blocks publishing.
+- **Collision retry.** A 409 `NAME_EXISTS` from a name claimed between the
+  check and the POST is retried under the next free name, up to six attempts,
+  sharing the 429 `Retry-After` handling bulk publishing already had.
+
+### Changed
+
+- The publish dialog reads the manifest once and feeds both the live name
+  check and the folder picker from that single response, so opening the dialog
+  costs no extra request.
+- A name that slugs to nothing - emoji only, punctuation only - is rejected in
+  the dialog rather than by the Worker.
+
+### Notes
+
+- The Worker still replaces on a plain name match when `createOnly` is absent.
+  That path is unchanged on purpose, so older Studio builds and the
+  compatibility suite behave exactly as before.
+
+---
+
 ## 7.5.0
 
 Multi-opening auto-detect. A mockup photo with several openings - a room shot
