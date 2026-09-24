@@ -148,3 +148,17 @@
   }
   bulkPrepareOne = async function (...args) { return fitPrepared(await originalPrepare(...args)); };
 })()
+
+/* Bulk 100 is a primary workflow, so surface it in the topbar right beside
+ * Tools instead of hiding it inside the menu. The same element is moved, so
+ * the click handler and the live "Bulk n/N" progress label keep working. */
+;(function () {
+  'use strict';
+  const bulk = document.getElementById('btnBulk100');
+  const tools = document.getElementById('btnToolsMenu');
+  const wrap = tools && tools.closest('.menuwrap');
+  if (!bulk || !wrap) return;
+  const heading = bulk.previousElementSibling;
+  if (heading && heading.tagName === 'H3') heading.remove();
+  wrap.insertAdjacentElement('afterend', bulk);
+})()
