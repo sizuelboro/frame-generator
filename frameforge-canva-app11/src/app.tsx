@@ -1,7 +1,7 @@
 import { useFeatureSupport, useSelection } from "@canva/app-hooks";
 import { upload } from "@canva/asset";
-import { addElementAtPoint } from "@canva/design";
-import { useEffect, useState } from "react";
+import { addElementAtPoint, addPage, getDefaultPageDimensions } from "@canva/design";
+import { useEffect, useRef, useState } from "react";
 import bundledMockups from "./mockups.json";
 import {
   MAX_COORDINATE,
@@ -140,6 +140,11 @@ const inlineStyles = `
 [data-frameforge-app] .list { display:grid; gap:10px; min-width:0; }
 [data-frameforge-app] .card { display:grid; grid-template-columns:58px minmax(0,1fr) auto; align-items:center; gap:10px; width:100%; min-width:0; padding:9px; border:1px solid #e6e5e3; border-radius:10px; background:#f9f8f7; }
 [data-frameforge-app] .preview { display:grid; place-items:center; width:58px; height:58px; overflow:hidden; border:1px solid #e6e5e3; border-radius:7px; background:#fff; }
+[data-frameforge-app] button.preview { padding:0; cursor:zoom-in; border-color:#e6e5e3; background:#fff; }
+[data-frameforge-app] button.preview:hover { border-color:#8b3dff; }
+[data-frameforge-app] .previewDialog { width:min(440px,92vw); display:grid; gap:10px; }
+[data-frameforge-app] .previewStage { display:grid; place-items:center; padding:10px; border:1px solid #e6e5e3; border-radius:10px; background:repeating-conic-gradient(#f3f2f0 0% 25%, #fff 0% 50%) 50%/16px 16px; }
+[data-frameforge-app] .previewStage img { max-width:100%; max-height:52vh; object-fit:contain; }
 [data-frameforge-app] .preview img { display:block; width:100%; height:100%; max-width:100%; object-fit:contain; }
 [data-frameforge-app] .details { min-width:0; overflow:hidden; }
 [data-frameforge-app] .name { overflow:hidden; font-size:14px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
@@ -197,6 +202,14 @@ const inlineStyles = `
 [data-frameforge-app] .dialogActions { display:flex; justify-content:flex-end; gap:8px; }
 [data-frameforge-app] .secondaryButton { border-color:#d9d7d3; background:#fff; color:#2c2c2b; }
 [data-frameforge-app] .dangerButton { border-color:#c93737; background:#c93737; }
+[data-frameforge-app] .bulkBar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 10px; align-items:center; margin:0 0 10px; padding:10px 12px; border:1px solid #e3e1dd; border-radius:10px; background:#faf9f7; }
+[data-frameforge-app] .bulkBar strong { display:block; font-size:13px; }
+[data-frameforge-app] .bulkBar span.bulkMeta { color:#5c5a57; font-size:12px; }
+[data-frameforge-app] .bulkBar label { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; }
+[data-frameforge-app] .bulkBar select { padding:4px 6px; border:1px solid #d9d7d3; border-radius:6px; background:#fff; font-size:12px; }
+[data-frameforge-app] .bulkActions { display:flex; align-items:center; gap:8px; grid-column:1/-1; }
+[data-frameforge-app] .bulkActions button { flex:1; }
+[data-frameforge-app] .bulkProgress { font-size:12px; color:#5c5a57; white-space:nowrap; }
 @media (max-width:340px) { [data-frameforge-app] .card { grid-template-columns:52px minmax(0,1fr); } [data-frameforge-app] .preview { width:52px; height:52px; } [data-frameforge-app] .card button { grid-column:1/-1; width:100%; } }
 `;
 
@@ -213,6 +226,10 @@ export function App() {
   const [workerUrl, setWorkerUrl] = useState(() => localStorage.getItem(URL_KEY) || "");
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem(TOKEN_KEY) || "");
   const [busy, setBusy] = useState<string | null>(null);
+  const [perPage, setPerPage] = useState(20);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number; label: string } | null>(null);
+  const bulkCancel = useRef(false);
+  const [preview, setPreview] = useState<Mockup | null>(null);
   const [smartFiles, setSmartFiles] = useState<Record<string, File | null>>({});
   const imageSelection = useSelection("image");
   const [smartZoom, setSmartZoom] = useState(1);
@@ -387,6 +404,112 @@ export function App() {
     }
   }
 
+  /**
+   * Bulk add: lay every frame in the current view out on new pages as real,
+   * usable native Canva frames (each one keeps its own dropTarget path), in a
+   * tidy grid. One addPage call per page, so a 70 frame folder becomes four
+   * pages instead of seventy manual Add clicks.
+   */
+  const GRID_COLUMNS: Record<number, number> = { 6: 3, 12: 4, 20: 5, 24: 6 };
+
+  async function buildPageElement(mockup: Mockup, box: { top: number; left: number; width: number; height: number }) {
+    let shapePaths: any[];
+    if (mockup.mode === "silhouette") {
+      const starter = await upload({ type: "image", mimeType: mockup.mimeType ?? "image/png", url: mockup.thumbUrl!, thumbnailUrl: mockup.thumbUrl!, width: mockup.assetWidth ?? mockup.w, height: mockup.assetHeight ?? mockup.h, aiDisclosure: mockup.aiDisclosure ?? "none" });
+      shapePaths = mockup.paths.map((d) => ({ d, fill: { dropTarget: true, asset: { type: "image", ref: starter.ref } } }));
+    } else {
+      shapePaths = mockup.paths.map((d) => ({ d, fill: { dropTarget: true } }));
+      const overlay = await upload({ type: "image", mimeType: mockup.mimeType ?? "image/png", url: mockup.overlayUrl!, thumbnailUrl: mockup.thumbUrl || mockup.overlayUrl!, width: mockup.assetWidth ?? mockup.w, height: mockup.assetHeight ?? mockup.h, aiDisclosure: mockup.aiDisclosure ?? "none" });
+      shapePaths.push({ d: `M 0 0 H ${mockup.w} V ${mockup.h} H 0 Z`, fill: { dropTarget: false, asset: { type: "image", ref: overlay.ref } } });
+    }
+    // Canva allows at most 30 paths in one shape element.
+    if (shapePaths.length > 30) return null;
+    return { type: "shape" as const, paths: shapePaths, viewBox: { top: 0, left: 0, width: mockup.w, height: mockup.h }, top: box.top, left: box.left, width: box.width, height: box.height };
+  }
+
+  async function addAllToPages() {
+    // Smart Mask frames need a per-frame photo, and exact multi frames insert
+    // as several aligned elements, so neither belongs in a grid sheet.
+    const eligible = visibleMockups.filter((item) => item.mode !== "smart-mask" && !isExactMulti(item) && !validateMockup(item));
+    const skipped = visibleMockups.length - eligible.length;
+    if (!eligible.length) {
+      setNotice({ tone: "critical", text: "No frames in this view can be bulk added. Smart Mask and exact multi frames must be added one at a time." });
+      return;
+    }
+
+    const columns = GRID_COLUMNS[perPage] ?? 5;
+    const rows = Math.ceil(perPage / columns);
+    const defaults = await getDefaultPageDimensions();
+    const pageWidth = defaults?.width ?? 1920;
+    const pageHeight = defaults?.height ?? 1080;
+    const margin = Math.round(Math.min(pageWidth, pageHeight) * 0.04);
+    const gap = Math.round(Math.min(pageWidth, pageHeight) * 0.02);
+    const cellWidth = (pageWidth - margin * 2 - gap * (columns - 1)) / columns;
+    const cellHeight = (pageHeight - margin * 2 - gap * (rows - 1)) / rows;
+    if (cellWidth <= 1 || cellHeight <= 1) {
+      setNotice({ tone: "critical", text: "This page is too small for that grid. Pick fewer frames per page." });
+      return;
+    }
+
+    bulkCancel.current = false;
+    setBusy("bulk");
+    setNotice(null);
+
+    const pageCount = Math.ceil(eligible.length / perPage);
+    let added = 0;
+    let failed = 0;
+    try {
+      for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+        const slice = eligible.slice(pageIndex * perPage, (pageIndex + 1) * perPage);
+        const elements: any[] = [];
+        for (let index = 0; index < slice.length; index++) {
+          if (bulkCancel.current) break;
+          const mockup = slice[index];
+          setBulkProgress({ done: added + index, total: eligible.length, label: `Page ${pageIndex + 1}/${pageCount} · ${mockup.name}` });
+          const column = index % columns;
+          const row = Math.floor(index / columns);
+          const scale = Math.min(cellWidth / mockup.w, cellHeight / mockup.h);
+          const width = mockup.w * scale;
+          const height = mockup.h * scale;
+          try {
+            const element = await buildPageElement(mockup, {
+              left: margin + column * (cellWidth + gap) + (cellWidth - width) / 2,
+              top: margin + row * (cellHeight + gap) + (cellHeight - height) / 2,
+              width,
+              height,
+            });
+            if (element) elements.push(element);
+            else failed++;
+          } catch {
+            failed++;
+          }
+        }
+        if (elements.length) {
+          await addPage({
+            title: `${currentFolderId === null ? "All frames" : folders.find((folder) => folder.id === currentFolderId)?.name || "Uncategorized"} ${pageIndex + 1}/${pageCount}`,
+            elements,
+            ...(defaults ? {} : { dimensions: { width: pageWidth, height: pageHeight } }),
+          });
+          added += elements.length;
+        }
+        if (bulkCancel.current) break;
+      }
+
+      const parts = [`${added} frame(s) added across ${Math.ceil(added / perPage) || 0} page(s)`];
+      if (failed) parts.push(`${failed} could not be built`);
+      if (skipped) parts.push(`${skipped} skipped (Smart Mask or exact multi — add those individually)`);
+      if (bulkCancel.current) parts.push("stopped early");
+      setNotice({ tone: added ? "positive" : "critical", text: `${parts.join(" · ")}.` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setNotice({ tone: "critical", text: `Bulk add failed after ${added} frame(s): ${message}` });
+    } finally {
+      setBulkProgress(null);
+      bulkCancel.current = false;
+      setBusy(null);
+    }
+  }
+
   const query = search.trim().toLowerCase();
   const visibleMockups = mockups.filter((item) => (currentFolderId === null || String(item.folderId || "") === currentFolderId) && (!query || item.name.toLowerCase().includes(query)));
   const folderCount = (id: string) => mockups.filter((item) => String(item.folderId || "") === id).length;
@@ -461,12 +584,53 @@ export function App() {
 
       {!canInsert && <div className="alert critical">This Canva design type does not support positioned elements.</div>}
 
+      {preview && <div className="dialogBackdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}>
+        <section className="nativeDialog previewDialog" role="dialog" aria-modal="true" aria-labelledby="previewDialogTitle">
+          <h2 id="previewDialogTitle">{preview.name}</h2>
+          <div className="previewStage">
+            <img src={preview.overlayUrl || preview.thumbUrl || ""} alt={`${preview.name} preview`} />
+          </div>
+          <p>{preview.w} × {preview.h}px · {preview.mode === "smart-mask" ? "exact Smart Mask" : preview.mode === "silhouette" ? (isExactMulti(preview) ? `exact multi · ${preview.paths.length} objects` : "silhouette") : "overlay"} · {preview.paths.length} opening path(s)</p>
+          <div className="dialogActions">
+            <button className="secondaryButton" type="button" onClick={() => setPreview(null)}>Close</button>
+            <button type="button" disabled={!canInsert || busy !== null || (preview.mode === "smart-mask" && !smartFiles[preview.id])} onClick={() => { const item = preview; setPreview(null); void insert(item); }}>Add to design</button>
+          </div>
+        </section>
+      </div>}
+
+      {visibleMockups.length > 1 && <section className="bulkBar" aria-label="Bulk add frames">
+        <div>
+          <strong>Bulk add to pages</strong>
+          <span className="bulkMeta">{visibleMockups.length} frame(s) in this view</span>
+        </div>
+        <label htmlFor="perPage">Per page
+          <select id="perPage" value={perPage} disabled={busy !== null} onChange={(event) => setPerPage(Number(event.currentTarget.value))}>
+            <option value={6}>6 (3 × 2)</option>
+            <option value={12}>12 (4 × 3)</option>
+            <option value={20}>20 (5 × 4)</option>
+            <option value={24}>24 (6 × 4)</option>
+          </select>
+        </label>
+        <div className="bulkActions">
+          {bulkProgress ? (
+            <>
+              <span className="bulkProgress">{bulkProgress.done}/{bulkProgress.total} · {bulkProgress.label}</span>
+              <button className="cancelDeleteButton" type="button" onClick={() => { bulkCancel.current = true; }}>Stop</button>
+            </>
+          ) : (
+            <button type="button" disabled={!canInsert || busy !== null} onClick={() => void addAllToPages()}>
+              Add all ({visibleMockups.length}) to new pages
+            </button>
+          )}
+        </div>
+      </section>}
+
       <div className="list">
         {visibleMockups.map((mockup) => (
           <section className="card" key={mockup.id}>
-            <div className="preview" aria-hidden="true">
+            <button className="preview" type="button" title={`Preview ${mockup.name}`} aria-label={`Preview ${mockup.name}`} onClick={() => setPreview(mockup)}>
               {mockup.thumbUrl ? <img src={mockup.thumbUrl} alt="" /> : <span>FF</span>}
-            </div>
+            </button>
             <div className="details">
               <div className="name">{mockup.name}</div>
               <div className="meta">{mockup.w} × {mockup.h}px · {mockup.mode === "smart-mask" ? "exact Smart Mask" : mockup.mode === "silhouette" ? (isExactMulti(mockup) ? `exact multi · ${mockup.paths.length} objects` : "silhouette") : "overlay"}</div>
