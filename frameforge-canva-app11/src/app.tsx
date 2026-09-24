@@ -140,6 +140,11 @@ const inlineStyles = `
 [data-frameforge-app] .list { display:grid; gap:10px; min-width:0; }
 [data-frameforge-app] .card { display:grid; grid-template-columns:58px minmax(0,1fr) auto; align-items:center; gap:10px; width:100%; min-width:0; padding:9px; border:1px solid #e6e5e3; border-radius:10px; background:#f9f8f7; }
 [data-frameforge-app] .preview { display:grid; place-items:center; width:58px; height:58px; overflow:hidden; border:1px solid #e6e5e3; border-radius:7px; background:#fff; }
+[data-frameforge-app] button.preview { padding:0; cursor:zoom-in; border-color:#e6e5e3; background:#fff; }
+[data-frameforge-app] button.preview:hover { border-color:#8b3dff; }
+[data-frameforge-app] .previewDialog { width:min(440px,92vw); display:grid; gap:10px; }
+[data-frameforge-app] .previewStage { display:grid; place-items:center; padding:10px; border:1px solid #e6e5e3; border-radius:10px; background:repeating-conic-gradient(#f3f2f0 0% 25%, #fff 0% 50%) 50%/16px 16px; }
+[data-frameforge-app] .previewStage img { max-width:100%; max-height:52vh; object-fit:contain; }
 [data-frameforge-app] .preview img { display:block; width:100%; height:100%; max-width:100%; object-fit:contain; }
 [data-frameforge-app] .details { min-width:0; overflow:hidden; }
 [data-frameforge-app] .name { overflow:hidden; font-size:14px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
@@ -224,6 +229,7 @@ export function App() {
   const [perPage, setPerPage] = useState(20);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number; label: string } | null>(null);
   const bulkCancel = useRef(false);
+  const [preview, setPreview] = useState<Mockup | null>(null);
   const [smartFiles, setSmartFiles] = useState<Record<string, File | null>>({});
   const imageSelection = useSelection("image");
   const [smartZoom, setSmartZoom] = useState(1);
@@ -578,6 +584,20 @@ export function App() {
 
       {!canInsert && <div className="alert critical">This Canva design type does not support positioned elements.</div>}
 
+      {preview && <div className="dialogBackdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreview(null); }}>
+        <section className="nativeDialog previewDialog" role="dialog" aria-modal="true" aria-labelledby="previewDialogTitle">
+          <h2 id="previewDialogTitle">{preview.name}</h2>
+          <div className="previewStage">
+            <img src={preview.overlayUrl || preview.thumbUrl || ""} alt={`${preview.name} preview`} />
+          </div>
+          <p>{preview.w} × {preview.h}px · {preview.mode === "smart-mask" ? "exact Smart Mask" : preview.mode === "silhouette" ? (isExactMulti(preview) ? `exact multi · ${preview.paths.length} objects` : "silhouette") : "overlay"} · {preview.paths.length} opening path(s)</p>
+          <div className="dialogActions">
+            <button className="secondaryButton" type="button" onClick={() => setPreview(null)}>Close</button>
+            <button type="button" disabled={!canInsert || busy !== null || (preview.mode === "smart-mask" && !smartFiles[preview.id])} onClick={() => { const item = preview; setPreview(null); void insert(item); }}>Add to design</button>
+          </div>
+        </section>
+      </div>}
+
       {visibleMockups.length > 1 && <section className="bulkBar" aria-label="Bulk add frames">
         <div>
           <strong>Bulk add to pages</strong>
@@ -608,9 +628,9 @@ export function App() {
       <div className="list">
         {visibleMockups.map((mockup) => (
           <section className="card" key={mockup.id}>
-            <div className="preview" aria-hidden="true">
+            <button className="preview" type="button" title={`Preview ${mockup.name}`} aria-label={`Preview ${mockup.name}`} onClick={() => setPreview(mockup)}>
               {mockup.thumbUrl ? <img src={mockup.thumbUrl} alt="" /> : <span>FF</span>}
-            </div>
+            </button>
             <div className="details">
               <div className="name">{mockup.name}</div>
               <div className="meta">{mockup.w} × {mockup.h}px · {mockup.mode === "smart-mask" ? "exact Smart Mask" : mockup.mode === "silhouette" ? (isExactMulti(mockup) ? `exact multi · ${mockup.paths.length} objects` : "silhouette") : "overlay"}</div>
