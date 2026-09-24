@@ -39,13 +39,16 @@
     // Comma-separated exact origins allowed to call the admin routes from a
     // browser. Leave empty to keep the old open behaviour.
     //
-    // Set this to your real origins, for example:
-    //   "https://canvaforge.pages.dev,https://app-aabbccdd.canva-apps.com"
+    // Three origins are needed in practice:
+    //   1. the published Canva app  (Developer Portal -> App origin)
+    //   2. FrameForge Studio        (Cloudflare Pages)
+    //   3. http://localhost:8080    (`npm start` dev run of the Canva app;
+    //      the dev iframe sends localhost as its Origin, so leaving this out
+    //      makes delete, move and folder writes fail with ORIGIN_BLOCKED
+    //      while reads keep working)
     //
-    // Your Canva app origin is shown in the Developer Portal under
-    // "App origin". Reads (GET) stay public so buyers' inserted frames keep
-    // loading their assets.
-    "ALLOWED_ORIGINS": ""
+    // Reads (GET) stay public so buyers' inserted frames keep loading assets.
+    "ALLOWED_ORIGINS": "https://app-aahogdnjohe.canva-apps.com,https://canvaforge.pages.dev,http://localhost:8080"
   },
 
   "observability": {
