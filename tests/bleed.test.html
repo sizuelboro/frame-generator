@@ -94,6 +94,34 @@ function cardWithWindow(size, win) {
   return c.toDataURL('image/png');
 }
 
+/* A sketchy pen outline: two thin wobbly rectangles with gaps between the
+   strokes, the synthetic stand-in for a line-art frame. There is no body of
+   colour anywhere, and the inside of the frame leaks out to the page through
+   the gaps - which is why the old detector found no opening in these. */
+function sketchOutline(size, margins) {
+  var c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  var x = c.getContext('2d');
+  x.strokeStyle = 'rgba(30,90,70,0.86)';
+  x.lineWidth = 2;
+  margins.forEach(function (m) {
+    for (var s = 0; s < 4; s++) {
+      x.beginPath();
+      for (var t = 0; t <= 60; t++) {
+        var u = t / 60, px, py;
+        if (s === 0) { px = m + (size - 2 * m) * u; py = m; }
+        else if (s === 1) { px = size - m; py = m + (size - 2 * m) * u; }
+        else if (s === 2) { px = size - m - (size - 2 * m) * u; py = size - m; }
+        else { px = m; py = size - m - (size - 2 * m) * u; }
+        var wx = px + Math.sin(t * 1.7 + s) * 1.6, wy = py + Math.cos(t * 1.3 + s) * 1.6;
+        if (t) x.lineTo(wx, wy); else x.moveTo(wx, wy);
+      }
+      x.stroke();
+    }
+  });
+  return c.toDataURL('image/png');
+}
+
 /* How much of the frame body still shows the white page after the photo is
    dropped in. "Body" means the silhouette with its opening filled in, i.e.
    everything a person reads as being inside the frame. */
@@ -202,6 +230,32 @@ async function run() {
     chk('geometry is identical with the new code path off or on',
       JSON.stringify(hard.pts) === JSON.stringify(hardBare.pts));
     chk('still traced as a four-point window', hard.pts.length === 4, String(hard.pts.length));
+
+    section('5. line-art frames get an opening, but never a bleed');
+    var inner = SIZE * 0.14, outer = SIZE * 0.09;
+    var pen = sketchOutline(SIZE, [outer, inner]);
+    var penBare = await detectOpening(overlayFor(pen, SIZE), { bleed: false });
+    var penRes = await detectOpening(overlayFor(pen, SIZE));
+    chk('the bare detector cannot find a usable window in a line drawing',
+      !penBare || penBare.openings.length !== 1,
+      penBare ? penBare.openings.length + ' openings' : 'nothing traced');
+    chk('the bridged outline recovers one opening',
+      !!penRes && penRes.sketch === true && penRes.openings.length === 1);
+    if (penRes && penRes.pts) {
+      var dPen = framePath(penRes.pts, false);
+      chk('a few thin lines are never bled under', penRes.bleed === false);
+      chk('the middle of the drawing is covered', covered(dPen, SIZE / 2, SIZE / 2));
+      chk('the photo tucks under the innermost line',
+        covered(dPen, SIZE / 2, inner + 1));
+      chk('the photo never reaches past the outermost line',
+        !covered(dPen, SIZE / 2, outer - 3));
+      chk('the page around the drawing stays clear',
+        !covered(dPen, 2, 2) && !covered(dPen, SIZE - 2, SIZE - 2));
+      chk('the opening is the window, not the whole canvas',
+        penRes.coverage > 0.2 && penRes.coverage < 0.85, penRes.coverage.toFixed(3));
+      chk('the line-art path publishes too',
+        FF_LIMITS.measurePathBudget({ mode: 'overlay', w: SIZE, h: SIZE, paths: [dPen] }).ok);
+    }
 
     chk('no runtime errors during detection', window.__ffErrors.length === 0,
       window.__ffErrors.join(' | '));
