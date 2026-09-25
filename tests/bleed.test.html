@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>FrameForge — soft-edge bleed suite</title>
+</head>
+<body>
+<script>
+/* =========================================================================
+   Soft-edged (hand drawn) artwork suite.
+
+   Crayon, watercolour and marker frames have semi-transparent strokes and
+   hatching gaps all over the border. Dropping the photo into the traced
+   opening alone left Canva's white page showing through every one of those
+   gaps, which is the bug this suite locks down. The overlay is always drawn
+   on top of the photo, so the drop target may cover the whole body of the
+   frame - but never a pixel beyond its outer edge.
+
+   Run: node tools/test-bleed.mjs
+   ========================================================================= */
+window.__ffErrors = [];
+window.addEventListener('error', function (e) { window.__ffErrors.push(String(e.message)); });
+window.addEventListener('unhandledrejection', function (e) { window.__ffErrors.push(String(e.reason)); });
+</script>
+
+<script src="../js/00-demo-overlay.js"></script>
+<script src="../js/01-limits.js"></script>
+<script src="../js/02-state.js"></script>
+<script src="../js/03-geometry.js"></script>
+<script src="../js/04-render.js"></script>
+<script src="../js/05-layers.js"></script>
+<script src="../js/06-properties.js"></script>
+<script src="../js/07-shadow.js"></script>
+<script src="../js/08-bulk.js"></script>
+<script src="../js/09-trace-pdf.js"></script>
+<script src="../js/10-dialogs.js"></script>
+<script src="../js/11-detect.js"></script>
+<script src="../js/12-silhouette.js"></script>
+<script src="../js/13-scene.js"></script>
+<script src="../js/14-wand.js"></script>
+<script src="../js/15-mockup-pdf.js"></script>
+<script src="../js/16-build-info.js"></script>
+<script src="../js/17-ratio-presets.js"></script>
+<script src="../js/18-frame-designs.js"></script>
+<script src="../js/19-toolbar.js"></script>
+<script src="../js/20-psd-export.js"></script>
+<script src="../js/21-soft-bleed.js"></script>
+
+<script>
+var OUT = [];
+function section(t) { OUT.push('--- ' + t + ' ---'); }
+function chk(name, ok, info) { OUT.push((ok ? 'PASS ' : 'FAIL ') + name + (info ? ' :: ' + info : '')); }
+
+var probe = document.createElement('canvas').getContext('2d');
+function covered(d, x, y) { return probe.isPointInPath(new Path2D(d), x, y); }
+
+function overlayFor(src, size) {
+  return {
+    id: 'b' + Math.random().toString(36).slice(2), type: 'overlay', name: 'Art', src: src,
+    x: 0, y: 0, w: size, h: size, rotation: 0, visible: true, locked: false, opacity: 1,
+  };
+}
+
+/* A ring drawn with gappy, semi-transparent strokes: the synthetic stand-in
+   for a crayon frame. Nothing here is fully opaque and nothing is a clean
+   edge, exactly like the artwork users publish. */
+function crayonRing(size) {
+  var c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  var x = c.getContext('2d');
+  var cx = size / 2, cy = size / 2, rIn = size * 0.30, rOut = size * 0.44;
+  for (var n = 0; n < 620; n++) {
+    var a = (n / 620) * Math.PI * 2 * 7;
+    var r = rIn + (rOut - rIn) * ((n * 37 % 100) / 100);
+    x.strokeStyle = 'rgba(40,20,90,' + (0.25 + (n % 5) * 0.15) + ')';
+    x.lineWidth = 3;
+    x.beginPath();
+    x.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    x.lineTo(cx + Math.cos(a + 0.25) * (r + 6), cy + Math.sin(a + 0.25) * (r + 6));
+    x.stroke();
+  }
+  return c.toDataURL('image/png');
+}
+
+/* The hard-cut poster mockup the Studio has always handled: an opaque card
+   with a window knocked clean out of it. */
+function cardWithWindow(size, win) {
+  var c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  var x = c.getContext('2d');
+  x.fillStyle = '#d8d3cc';
+  x.fillRect(0, 0, size, size);
+  x.clearRect(win[0], win[1], win[2], win[3]);
+  return c.toDataURL('image/png');
+}
+
+/* How much of the frame body still shows the white page after the photo is
+   dropped in. "Body" means the silhouette with its opening filled in, i.e.
+   everything a person reads as being inside the frame. */
+async function whiteInsideFrame(src, pts, size) {
+  var img = await loadImg(src);
+
+  var c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  var x = c.getContext('2d', { willReadFrequently: true });
+  x.fillStyle = '#ffffff';
+  x.fillRect(0, 0, size, size);                 // Canva's page
+  x.save();
+  x.beginPath();
+  x.moveTo(pts[0].x, pts[0].y);
+  for (var i = 1; i < pts.length; i++) x.lineTo(pts[i].x, pts[i].y);
+  x.closePath();
+  x.clip();
+  x.fillStyle = '#ff00ff';
+  x.fillRect(0, 0, size, size);                 // the dropped photo
+  x.restore();
+  x.drawImage(img, 0, 0, size, size);           // artwork, always on top
+  var shown = x.getImageData(0, 0, size, size).data;
+
+  var a = document.createElement('canvas');
+  a.width = size; a.height = size;
+  var ac = a.getContext('2d', { willReadFrequently: true });
+  ac.drawImage(img, 0, 0, size, size);
+  var art = ac.getImageData(0, 0, size, size).data;
+
+  // flood the outside of the artwork so "inside the frame" is well defined
+  var outside = new Uint8Array(size * size), stack = [];
+  function push(i) { if (!outside[i] && art[i * 4 + 3] < 24) { outside[i] = 1; stack.push(i); } }
+  for (var q = 0; q < size; q++) { push(q); push((size - 1) * size + q); push(q * size); push(q * size + size - 1); }
+  while (stack.length) {
+    var i0 = stack.pop(), px = i0 % size, py = (i0 - px) / size;
+    if (px > 0) push(i0 - 1);
+    if (px < size - 1) push(i0 + 1);
+    if (py > 0) push(i0 - size);
+    if (py < size - 1) push(i0 + size);
+  }
+
+  var body = 0, white = 0, spill = 0;
+  for (var j = 0; j < size * size; j++) {
+    var o = j * 4, r = shown[o], g = shown[o + 1], b = shown[o + 2];
+    var isWhite = r > 245 && g > 245 && b > 245;
+    var isPhoto = r > 200 && g < 80 && b > 200;
+    if (!outside[j]) { body++; if (isWhite) white++; }
+    else if (isPhoto) spill++;                  // photo escaping past the artwork
+  }
+  return { white: white / Math.max(1, body), spill: spill / (size * size) };
+}
+
+async function run() {
+  var SIZE = 400;
+  /* This harness deliberately loads the bundle without the Studio's DOM, so
+     only errors raised by the detection work itself are interesting here.
+     Full-bundle wiring is covered by tests/studio.test.html. */
+  window.__ffErrors.length = 0;
+  try {
+    section('1. a crayon frame is recognised as hand drawn');
+    var soft = crayonRing(SIZE);
+    var withBleed = await detectOpening(overlayFor(soft, SIZE));
+    var bare = await detectOpening(overlayFor(soft, SIZE), { bleed: false });
+    chk('soft-edged frame is detected', !!withBleed && !!bare);
+    if (withBleed && bare) {
+      chk('marked as hand drawn', withBleed.bleed === true, 'softRatio=' + withBleed.softRatio.toFixed(3));
+      chk('bleed can be turned off explicitly', bare.bleed === false);
+      chk('bleeding grows the drop target past the bare opening',
+        withBleed.coverage > bare.coverage * 1.2,
+        bare.coverage.toFixed(3) + ' -> ' + withBleed.coverage.toFixed(3));
+
+      section('2. the border no longer shows the white page');
+      var dNew = framePath(withBleed.pts, false), dOld = framePath(bare.pts, false);
+      var onBorder = { x: SIZE / 2, y: SIZE / 2 - SIZE * 0.37 };
+      chk('the border area is inside the drop target', covered(dNew, onBorder.x, onBorder.y));
+      chk('it used to be outside it, which is what showed white', !covered(dOld, onBorder.x, onBorder.y));
+      chk('the centre of the opening stays covered', covered(dNew, SIZE / 2, SIZE / 2));
+      chk('the photo cannot spill past the outer edge',
+        !covered(dNew, SIZE / 2, SIZE / 2 - SIZE * 0.47));
+
+      var before = await whiteInsideFrame(soft, bare.pts, SIZE);
+      var after = await whiteInsideFrame(soft, withBleed.pts, SIZE);
+      chk('white gaps inside the frame are gone', after.white < 0.005,
+        (before.white * 100).toFixed(2) + '% -> ' + (after.white * 100).toFixed(2) + '%');
+      chk('the old geometry really did leave white behind', before.white > 0.01,
+        (before.white * 100).toFixed(2) + '%');
+      chk('almost no photo shows outside the artwork', after.spill < 0.002,
+        (after.spill * 100).toFixed(3) + '%');
+
+      section('3. the richer outline still publishes');
+      var bytes = new TextEncoder().encode(dNew).length;
+      chk('within the shared native path budget', bytes <= FF_LIMITS.PATH_BUDGET,
+        bytes + '/' + FF_LIMITS.PATH_BUDGET);
+      chk('one closed path, no curves',
+        (dNew.match(/M /g) || []).length === 1 && !/[QqCc]/.test(dNew) && /Z\s*$/.test(dNew));
+      chk('whole-shape measurement passes',
+        FF_LIMITS.measurePathBudget({ mode: 'overlay', w: SIZE, h: SIZE, paths: [dNew] }).ok);
+    }
+
+    section('4. hard-cut mockups are untouched');
+    var card = cardWithWindow(SIZE, [140, 120, 120, 160]);
+    var hard = await detectOpening(overlayFor(card, SIZE));
+    var hardBare = await detectOpening(overlayFor(card, SIZE), { bleed: false });
+    chk('a poster mockup is never treated as hand drawn', hard.bleed === false,
+      'softRatio=' + hard.softRatio.toFixed(3));
+    chk('geometry is identical with the new code path off or on',
+      JSON.stringify(hard.pts) === JSON.stringify(hardBare.pts));
+    chk('still traced as a four-point window', hard.pts.length === 4, String(hard.pts.length));
+
+    chk('no runtime errors during detection', window.__ffErrors.length === 0,
+      window.__ffErrors.join(' | '));
+  } catch (error) {
+    chk('suite completed without throwing', false, error && error.message);
+  }
+
+  var el = document.createElement('div');
+  el.id = 'ff-test-report';
+  el.textContent = OUT.join('\n');
+  document.body.appendChild(el);
+}
+
+setTimeout(function () { run(); }, 600);
+</script>
+</body>
+</html>
