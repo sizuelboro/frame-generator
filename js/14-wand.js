@@ -205,9 +205,9 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && _wandOn) w
 
 if ($('#btnPickOpening')) {
   $('#btnPickOpening').onclick = async () => {
-    const raw = await uiPrompt('Pick opening \u2014 colour tolerance',
+    const raw = await uiPrompt('Select design area \u2014 colour tolerance',
       String(_wandTol),
-      'Then click inside the opening. Higher tolerance grabs more shades (useful for textured or watermarked backgrounds).');
+      'Then click inside the transparent screen or opening. Higher tolerance grabs more shades (useful for textured or watermarked backgrounds).');
     if (raw == null) return;
     const t = parseInt(raw, 10);
     _wandTol = isFinite(t) ? Math.max(5, Math.min(160, t)) : 40;

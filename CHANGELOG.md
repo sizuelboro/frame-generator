@@ -13,6 +13,33 @@ Reference material that is not version history lives in `docs/`.
 
 ---
 
+## Unreleased
+
+Studio usability pass. Publishing, detection, bleed, the Worker and the Canva
+app are unchanged; every button keeps its id, so existing handlers still work.
+
+### Changed
+
+- **Shorter, grouped toolbar.** New / Open / Save / Save as mockup moved into
+  one `File ▾` menu, and Auto bleed + Shadow strength moved into `Advanced ▾`.
+- **Plain-language labels.** `Add opening` → `Add design area`,
+  `Pick opening` → `Select design area`, `Fit canvas` → `Trim canvas`,
+  `Publish to Canva Dev` → `Publish to Canva`, `Auto screen` →
+  `Auto-detect screens`, `Remove bg` → `Remove background`, `Bulk 100` →
+  `Bulk publish`.
+- **Frames go under the mockup automatically.** A drawn Rect / Perspective
+  frame or a ratio design area is inserted directly below the lowest overlay
+  or shadow, so the "move it down with ↓" step is gone.
+- **Mockup-first empty state.** The card now leads with `Upload mockup`, and
+  dropping an image anywhere on an empty stage adds it as the mockup overlay.
+
+### Fixed
+
+- The stage empty state never appeared: it counted the "No layers yet" note
+  as a layer. It now looks for real layer rows.
+
+---
+
 ## 7.6.0
 
 Native Photoshop PSD export. Studio only: publishing, the Worker, the Canva

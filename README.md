@@ -107,15 +107,15 @@ which is exactly how a "US Letter" opening (0.773) ends up sold as A4 (0.707).
 
 ## Creator workflow
 
-0. Pick a **ratio preset** and orientation, hit **Add opening**, then choose a
+0. Pick a **ratio preset** and orientation, hit **Add design area**, then choose a
    **frame design**. Skip this if you are starting from an existing mockup
    photo.
 1. Build or open the mockup in the Studio.
-2. Leave **Auto bleed** at 6px (8px for rough edges). It is a ceiling, not a
+2. Leave **Advanced → Auto bleed** at 6px (8px for rough edges). It is a ceiling, not a
    fixed amount — overlay opacity is measured per opening vertex and thin
    borders get less automatically.
-3. **Fit canvas.**
-4. **Publish to Canva Dev.** Every publish creates a new entry; an existing
+3. **Trim canvas.**
+4. **Publish to Canva.** Every publish creates a new entry; an existing
    frame is never replaced. A name that is already taken is numbered
    (`Floral Arch 2`), and the dialog tells you before you publish.
 5. **Refresh library** in the Canva app.

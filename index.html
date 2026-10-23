@@ -184,6 +184,8 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
   box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 30px rgba(0,0,0,.13);
 }
 .menu.open{display:flex}
+.menu.left{left:0;right:auto}
+.menu .setting{width:100%;justify-content:flex-start}
 .menu .btn{width:100%;justify-content:flex-start;border-color:transparent;background:transparent}
 .menu .btn:hover{background:var(--soft2)}
 .menu h3{
@@ -238,38 +240,43 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 
     <div class="sep"></div>
 
-    <!-- File -->
+    <!-- File: four actions folded into one menu -->
     <div class="grp">
-      <button class="btn" id="btnNew">New</button>
-      <button class="btn" id="btnLoadJson">Open JSON</button>
-      <button class="btn" id="btnSaveJson">Save JSON</button>
-      <button class="btn" id="btnSaveTpl">Save as mockup</button>
+      <div class="menuwrap">
+        <button class="btn" id="btnFileMenu" aria-haspopup="menu" aria-expanded="false">File <span class="caret">&#9662;</span></button>
+        <div class="menu left" id="menuFile" role="menu">
+          <button class="btn" id="btnNew">New</button>
+          <button class="btn" id="btnLoadJson">Open project (.json)</button>
+          <button class="btn" id="btnSaveJson">Save project (.json)</button>
+          <button class="btn" id="btnSaveTpl" title="Keep this mockup in the browser with empty frames, ready for any new artwork">Save as reusable mockup</button>
+        </div>
+      </div>
     </div>
 
     <div class="sep"></div>
 
     <!-- Print size first: step 0 of the creator workflow in README.md -->
     <div class="grp">
-      <select class="btn" id="ratioPreset" title="Declare the print ratio of the opening. The ratio is recorded on the frame and checked when you import the AI scene."></select>
+      <select class="btn" id="ratioPreset" title="Declare the print ratio of the design area. The ratio is recorded on the frame and checked when you import the AI scene."></select>
       <button class="btn" id="btnRatioOrient" title="Portrait or landscape">Portrait</button>
-      <button class="btn" id="btnAddRatioFrame" title="Add a bare opening at the selected print ratio">Add opening</button>
-      <select class="btn" id="frameDesign" title="Generate a mitred frame at the selected ratio from a flat swatch. Adds the moulding and its matching opening together."></select>
+      <button class="btn" id="btnAddRatioFrame" title="Add an empty design area (the opening the buyer's design drops into) at the selected print ratio">Add design area</button>
+      <select class="btn" id="frameDesign" title="Generate a mitred frame at the selected ratio from a flat swatch. Adds the moulding and its matching design area together."></select>
     </div>
 
     <div class="sep"></div>
 
     <!-- Trace: the one-click path stays visible, the rest fold away -->
     <div class="grp">
-      <button class="btn" id="btnPickOpening">Pick opening</button>
+      <button class="btn" id="btnPickOpening" title="Click inside the transparent screen or opening of your mockup to turn it into a design area">Select design area</button>
       <div class="menuwrap">
         <button class="btn" id="btnToolsMenu" aria-haspopup="menu" aria-expanded="false">Tools <span class="caret">&#9662;</span></button>
         <div class="menu" id="menuTools" role="menu">
           <h3>Detect</h3>
-          <button class="btn" id="btnAutoScreen">Auto screen</button>
+          <button class="btn" id="btnAutoScreen">Auto-detect screens</button>
           <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
-          <button class="btn" id="btnRemoveBg">Remove bg</button>
+          <button class="btn" id="btnRemoveBg">Remove background</button>
           <h3>Batch</h3>
-          <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk 100</button>
+          <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk publish</button>
           <h3>Library</h3>
           <button class="btn" id="btnLibrarySettings">Library settings</button>
         </div>
@@ -281,14 +288,22 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
     <!-- State, not actions -->
     <div class="grp">
       <span class="pill" id="sizePill">1200 &#215; 800</span>
-      <button class="btn" id="btnFitCanvas">Fit canvas</button>
+      <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible mockup and its frames">Trim canvas</button>
     </div>
 
     <div class="sep"></div>
 
+    <!-- Fine-tuning that most creators never touch -->
     <div class="grp">
-      <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
-      <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
+      <div class="menuwrap">
+        <button class="btn" id="btnAdvancedMenu" aria-haspopup="menu" aria-expanded="false">Advanced <span class="caret">&#9662;</span></button>
+        <div class="menu" id="menuAdvanced" role="menu">
+          <h3>Edge bleed</h3>
+          <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
+          <h3>Shadow strength</h3>
+          <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
+        </div>
+      </div>
     </div>
 
     <div class="sep"></div>
@@ -313,7 +328,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
           <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
         </div>
       </div>
-      <button class="btn primary" id="btnPublishCloud">Publish to Canva Dev</button>
+      <button class="btn primary" id="btnPublishCloud" title="Publish this frame to your FrameForge library for the Canva app">Publish to Canva</button>
     </div>
   </header>
 
@@ -381,11 +396,11 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
         <div class="estate" id="emptyState">
           <div class="ecard">
             <svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="7" y="8.5" width="10" height="7" rx="1" stroke-dasharray="2.5 2"/></svg>
-            <h3>Pick a print size, or open a mockup photo</h3>
-            <p>Add the opening at the ratio you are selling, then choose a frame design. Already have a mockup photograph? Add it as an overlay and trace the opening instead.</p>
+            <h3>Drop your mockup PNG here</h3>
+            <p>Use a mockup whose screen or opening is transparent, then click <b>Select design area</b> to mark where the buyer's design goes. Selling a print instead? Pick a frame ratio and add a design area.</p>
             <div class="acts">
-              <button class="btn primary" id="esAddOpening">Add opening</button>
-              <button class="btn" id="esAddOverlay">Add mockup overlay</button>
+              <button class="btn primary" id="esAddOverlay">Upload mockup</button>
+              <button class="btn" id="esAddOpening">Add design area</button>
             </div>
             <div class="tip">Rect frame <b>R</b> &#183; Perspective <b>P</b> &#183; Text <b>T</b> &#183; Shape <b>S</b></div>
           </div>

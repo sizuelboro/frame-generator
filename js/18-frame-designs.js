@@ -491,7 +491,7 @@ if ($('#frameDesign')) {
       swatch, swatchName
     });
     if (!res) { toast('Pick a frame ratio first'); return; }
-    toast(res.overlayName + ' added \u00b7 ' + res.border + 'px moulding \u00b7 opening is in register, no need to Pick opening');
+    toast(res.overlayName + ' added \u00b7 ' + res.border + 'px moulding \u00b7 opening is in register, no need to Select design area');
   };
 }
 

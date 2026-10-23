@@ -1028,6 +1028,45 @@ function testFrameDesigns() {
     window.__ffErrors.join(' | '));
 }
 
+/* =========================================================================
+   New frames go under the mockup without manual reordering
+   ========================================================================= */
+function testFrameOrdering() {
+  section('10. new frames go under the mockup');
+
+  var saved = doc.layers;
+  doc.layers = [];
+  addLayerTop({ id: uid(), type: 'image', name: 'Photo', visible: true, locked: false, opacity: 1,
+    src: '', x: 0, y: 0, w: 10, h: 10, rotation: 0 });
+  addLayerTop({ id: uid(), type: 'overlay', name: 'Laptop', visible: true, locked: true, opacity: 1,
+    src: '', x: 0, y: 0, w: 10, h: 10, rotation: 0 });
+  addLayerTop({ id: uid(), type: 'shadow', name: 'Shadow', visible: true, locked: true, opacity: 1,
+    src: '', x: 0, y: 0, w: 10, h: 10, rotation: 0 });
+
+  var a = newFrame('rect', 1, 1, 5, 5);
+  addLayerTop(a);
+  var b = newFrame('persp', 2, 2, 5, 5);
+  addLayerTop(b);
+  var types = doc.layers.map(function (l) { return l.type; }).join(',');
+  chk('frames are inserted below the lowest overlay or shadow',
+    types === 'image,frame,frame,overlay,shadow', types);
+  chk('the newest frame is selected', sel === b.id);
+  chk('second frame stacks above the first', doc.layers.indexOf(b) > doc.layers.indexOf(a));
+
+  addLayerTop({ id: uid(), type: 'text', name: 'Text', visible: true, locked: false, opacity: 1,
+    text: 'x', x: 0, y: 0, size: 10, color: '#000', weight: 700, align: 'left', rotation: 0 });
+  chk('non-frame layers still go on top', doc.layers[doc.layers.length - 1].type === 'text');
+
+  doc.layers = [];
+  var c = newFrame('rect', 1, 1, 5, 5);
+  addLayerTop(c);
+  chk('without a mockup a frame simply goes on top', doc.layers.length === 1 && doc.layers[0] === c);
+
+  doc.layers = saved;
+  sel = null;
+  sync();
+}
+
 async function run() {
   try {
     testBundle();
@@ -1039,6 +1078,7 @@ async function run() {
     await testMultiOpeningPipelines();
     testRatioPresets();
     testFrameDesigns();
+    testFrameOrdering();
   } catch (error) {
     chk('suite completed without throwing', false, error && error.message);
   }

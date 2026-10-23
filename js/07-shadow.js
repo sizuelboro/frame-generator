@@ -139,12 +139,12 @@ $('#btnFitCanvas').onclick = async () => {
   if (!overlays.length) { toast('Add a transparent mockup overlay first'); return; }
 
   const pad = await uiNumber({
-    title: 'Fit canvas to mockup',
+    title: 'Trim canvas to mockup',
     message: 'Trims the document to the visible overlay pixels and frame geometry.',
     label: 'Padding around mockup (canvas pixels)',
     value: 20, min: 0, max: 300, step: 1,
     hint: 'Keeps a margin so the overlay edge is not clipped.',
-    confirmLabel: 'Fit canvas',
+    confirmLabel: 'Trim canvas',
   });
   if (pad == null) return;
 
@@ -479,7 +479,7 @@ $('#btnPublishCloud').onclick = async () => {
   const existing=new Map();
   if(library&&Array.isArray(library.frames))for(const entry of library.frames){const key=cloudPublishSlug(entry.id||entry.name);if(key&&!existing.has(key))existing.set(key,entry)}
   const usedSlugs=new Set(existing.keys());
-  const named=await uiForm({title:'Publish to Canva Dev library',message:'A new library entry is always created. An existing frame is never replaced.',confirmLabel:'Publish',fields:[{name:'name',label:'Name shown in the Canva app',value:localStorage.getItem('frameforge.lastPublishName')||'New Mockup Frame',placeholder:'Floral Arch 01',hint:'A name that is already taken is numbered automatically, so the older frame stays in the library.',liveHint:value=>{
+  const named=await uiForm({title:'Publish to your Canva library',message:'A new library entry is always created. An existing frame is never replaced.',confirmLabel:'Publish',fields:[{name:'name',label:'Name shown in the Canva app',value:localStorage.getItem('frameforge.lastPublishName')||'New Mockup Frame',placeholder:'Floral Arch 01',hint:'A name that is already taken is numbered automatically, so the older frame stays in the library.',liveHint:value=>{
     if(!value)return null;
     if(libraryError)return{text:'Could not read the library · publishing still never replaces an entry.',tone:'warn'};
     if(!cloudPublishSlug(value))return{text:'Use at least one letter or number.',tone:'error'};

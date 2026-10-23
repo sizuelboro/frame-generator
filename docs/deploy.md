@@ -80,8 +80,8 @@ will be blocked in Preview.
    a maximum, not a forced amount - opacity along each opening vertex is
    measured and thin borders automatically get less. If alpha inspection
    fails, publishing proceeds with no bleed.
-3. **Fit canvas.**
-4. **Publish to Canva Dev.** Reusing an existing name replaces that entry.
+3. **Trim canvas.**
+4. **Publish to Canva.** Reusing an existing name replaces that entry.
 5. In the Canva app, **Refresh library**.
 6. Insert a **new** copy to test. Already-inserted elements never update.
 

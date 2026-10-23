@@ -23,7 +23,14 @@ function newFrame(kind, x, y, w, h) {
 }
 const emptyContent = (src) => ({ src, offsetX: 0, offsetY: 0, scale: 1, rotation: 0, fit: 'cover' });
 
-function addLayerTop(L) { doc.layers.push(L); sel = L.id; sync(); }
+/* A frame only shows through a mockup's transparent screen when it sits
+   underneath the artwork, so new frames go straight below the lowest
+   overlay or shadow instead of on top where the user had to reorder them. */
+function addLayerTop(L) {
+  const under = L.type === 'frame' ? doc.layers.findIndex(l => l.type === 'overlay' || l.type === 'shadow') : -1;
+  if (under > -1) doc.layers.splice(under, 0, L); else doc.layers.push(L);
+  sel = L.id; sync();
+}
 
 /* =========================================================================
    POINTER INTERACTION
@@ -136,7 +143,7 @@ cv.addEventListener('pointerup', (ev) => {
     drag = null;
     if (w > 14 && h > 14) {
       addLayerTop(newFrame(drag2kind, Math.round(x), Math.round(y), Math.round(w), Math.round(h)));
-      toast('Frame created · set an image in the right panel');
+      toast(doc.layers.some(l => l.type === 'overlay' || l.type === 'shadow') ? 'Frame placed under the mockup · set a preview image in the right panel' : 'Frame created · set an image in the right panel');
     }
     setTool('select'); return;
   }

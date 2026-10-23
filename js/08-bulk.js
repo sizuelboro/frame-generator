@@ -108,7 +108,7 @@ function refreshTpls() {
   const list = tplAll();
   box.innerHTML = '';
   if (!list.length) {
-    box.innerHTML = '<div class="empty">Build a mockup (overlay + frame), then hit <b>Save as mockup</b>. It is stored in this browser with empty frames, ready for any new artwork.</div>';
+    box.innerHTML = '<div class="empty">Build a mockup (overlay + frame), then use <b>File → Save as reusable mockup</b>. It is stored in this browser with empty frames, ready for any new artwork.</div>';
     return;
   }
   list.forEach(t => {
@@ -150,8 +150,10 @@ $('#zoomFit').onclick = fit;
 window.addEventListener('resize', () => { applyZoom(); });
 
 /* ---------------------------- drag & drop images ---------------------------- */
-['dragover', 'drop'].forEach(t => board.addEventListener(t, e => e.preventDefault()));
-board.addEventListener('drop', (ev) => {
+// Listen on the whole stage so drops on the empty-state card land too.
+const dropZone = $('#wrap') || board;
+['dragover', 'drop'].forEach(t => dropZone.addEventListener(t, e => e.preventDefault()));
+dropZone.addEventListener('drop', (ev) => {
   const f = ev.dataTransfer.files && ev.dataTransfer.files[0];
   if (!f || !/^image\//.test(f.type)) return;
   const fr = new FileReader();
@@ -164,6 +166,14 @@ board.addEventListener('drop', (ev) => {
       contentCache.clear(); sel = target.id; contentEdit = target.id;
       toast('Dropped into ' + target.name);
       sync();
+    } else if (!doc.layers.length) {
+      // First image on an empty canvas is the mockup itself.
+      loadMeta(src).then(m => {
+        const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
+        addLayerTop({ id: uid(), type: 'overlay', name: f.name.replace(/\.[^.]+$/, '') || 'Mockup overlay', visible: true, locked: true, opacity: 1,
+          src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
+        toast('Mockup added · now click Select design area');
+      });
     } else {
       loadMeta(src).then(m => {
         const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h, 1);
