@@ -27,12 +27,11 @@ function refreshProps() {
       <div class="sect">
         <h2>How it works</h2>
         <div class="note">
-          <b>1.</b> Add your mockup as <b>Mockup overlay</b> (screen area must be transparent).<br>
-          <b>2.</b> Draw a <b>Rect</b> or <b>Perspective</b> frame over each screen.<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;<b>Pick opening</b> finds every transparent opening and frames them all.<br>
-          <b>3.</b> Move the frame <b>below</b> the overlay with the ↓ order buttons.<br>
-          <b>4.</b> Set an image in the frame, then drag / scroll to fit.<br>
-          <b>5.</b> <b>Save as mockup</b> to reuse it later with any image.
+          <b>1.</b> Upload or drop your mockup PNG (the screen or opening must be transparent).<br>
+          <b>2.</b> Click <b>Select design area</b>, then click inside the screen. Or draw a <b>Rect</b> / <b>Perspective</b> frame over it.<br>
+          <b>3.</b> New frames go under the mockup automatically.<br>
+          <b>4.</b> Optional: set a preview image in the frame, then drag / scroll to fit.<br>
+          <b>5.</b> <b>Export</b> the overlay PNG + frame coordinates, or <b>File → Save as reusable mockup</b>.
         </div>
       </div>`;
     $('#cw').onchange = (e) => { doc.canvas.w = clamp(+e.target.value || 1200, 50, 6000); sizePill(); sync(); };

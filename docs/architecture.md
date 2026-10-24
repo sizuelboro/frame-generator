@@ -1,57 +1,40 @@
 # Architecture
 
-FrameForge turns a mockup image into a **native Canva frame**: a real Canva
-shape element with a `dropTarget: true` path. Because the output is native,
-a buyer needs no app installed and the element behaves like any Canva frame.
+FrameForge Studio turns a mockup image into a photo frame: a transparent
+overlay plus the opening (one or more polygons) a photo drops into. It was
+first built to publish native Canva frames; that path (Cloudflare Worker,
+Canva app, PDFs, Bulk publish) has been removed while the Studio is
+repurposed as Pixopik's frame generator. Tracing, bleed and hole handling
+below still follow the Canva-era path rules, because the detectors simplify
+against them.
 
 ```
-  Studio (browser)                Worker + R2                Canva app
-  index.html + js/       ──▶      /api/frames        ──▶     side panel
-  trace / bleed / fit            manifest.json               addElementAtPoint
-  publish                        assets/*.png                native frame
+  Studio (browser)
+  index.html + js/   ──▶  overlay PNG + frame-coords.json
+  trace / bleed / fit
 ```
 
-## Single-element frame model
-
-The build creates no Canva group. It creates one shape with several paths:
-
-1. A full-canvas path filled with the transparent mockup overlay image.
-2. The traced opening path, marked `dropTarget: true`.
-
-Canva shows one element. A user drags a photo into the opening and adjusts
-that image fill. There is no separate overlay layer to lock or hide.
-
-A mockup with several openings - a room shot with three posters, a shelf of
-frames - stays a single element too. Each opening is one more `dropTarget`
-path inside it, so the buyer drops a different image into each one. All the
-openings therefore share one combined path budget; in practice the binding
-limit is the 29-path ceiling, not the bytes.
+A mockup can have several openings - a room shot with three posters, a shelf
+of frames. Each opening becomes its own frame layer. All the openings share
+one combined path budget; in practice the binding limit is the 29-path
+ceiling, not the bytes.
 
 `detectOpening()` returns `openings[]` (largest first, `pts` kept as an alias
 for the first one) plus a `skipped` count of regions rejected by the 0.3%
 area filter. `autoScreen()` does the same with `quads[]` for flat-colour
 screens. Openings are capped at 12 per mockup.
 
-An **exact multi** silhouette is the exception: it inserts one aligned
-full-viewBox element per object so each object gets its own path budget, all
-sharing a single uploaded starter photo. Replacing one of those frames does
-not replace its siblings.
+An **exact multi** silhouette is the exception: each traced object gets its
+own path budget.
 
 ## Path budget
 
-Canva allows 1..30 paths per shape, each up to 2048 bytes, closed with `Z`,
-with exactly one `M` and no `Q` curves.
+The tracers simplify every opening to at most **1980 bytes** of path data,
+one `M` per path, no `Q` curves (originally Canva's shape limits). The budget
+lives in `shared/frameforge-limits.js` and is the only place it is defined;
+the Studio consumes the generated `js/01-limits.js`.
 
-FrameForge publishes against **1980 bytes**, leaving headroom for the
-structural overhead Canva counts on top of the raw `d` string. The budget
-lives in `shared/frameforge-limits.js` and is the only place it is defined:
-
-- the Worker imports it,
-- the Canva app mirrors it in `src/limits.ts`,
-- the Studio consumes the generated `js/01-limits.js`.
-
-`npm run check:limits` fails the build if these disagree, and also fails if
-any Studio module hardcodes a budget literal.
+`npm run check:limits` fails if any Studio module hardcodes a budget literal.
 
 Measurement depends on the shape:
 
@@ -62,18 +45,15 @@ Measurement depends on the shape:
 
 ## Native optimizer
 
-- Native drop-zone output only; Smart Mask is a deliberate fallback, not
-  automatic.
 - Relative integer coordinates derived from quantized absolute points.
 - The encoder picks the most compact of `l`/`h`/`v` and drops optional
   separators.
 - The simplifier strongly protects concave notches and inner contours, so
   hands, hair and knockouts survive byte reduction.
-- Publishing is blocked when the path data exceeds the safe budget.
 
 ## Enclosed holes
 
-A Canva path allows exactly one `M`, so a fully enclosed hole cannot be a
+A path allows exactly one `M`, so a fully enclosed hole cannot be a
 separate subpath. FrameForge stitches inner rings into the outer ring with
 zero-width bridges, giving one `M` that still describes the hole. The hole
 reads as a hole only if its ring winds opposite to the ring containing it, so
@@ -81,22 +61,15 @@ winding is normalised explicitly and then **verified** by probing the finished
 path with `isPointInPath` under the nonzero fill rule.
 
 Limits: at most six knockouts per contour, bounded by the byte budget. Holes
-beyond that are counted in `unbridgedHoles`, stored on the cloud entry,
-reported at publish time, and shown as a warning in the Canva app. Cuts that
+beyond that are counted in `unbridgedHoles` and reported. Cuts that
 reach the outside are unaffected and always preserved.
 
 ## Studio bundle
 
-`index.html` is markup only. Logic is 17 ordered classic scripts in `js/`.
+`index.html` is markup only. Logic is ordered classic scripts in `js/`.
 They deliberately share one global scope, mirroring the original single
 inline script, so **the order in `index.html` is load-bearing**. Adding a file
 at the end is safe; reordering is not.
 
 `js/01-limits.js` is generated - run `npm run build:limits` after editing
 `shared/frameforge-limits.js`.
-
-## Storage
-
-`manifest.json` and `folders.json` are single R2 objects. There is no
-locking, so publish from one creator session at a time. Concurrent
-multi-user publishing needs a Durable Object first.

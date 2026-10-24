@@ -17,7 +17,7 @@
 
    The output is an ordinary locked `overlay` layer - byte for byte the
    same shape as one the creator uploads by hand - so every downstream
-   feature (Pick opening, Export for AI, Bulk 100, Publish) keeps working
+   feature (Select design area, Export for AI, exports) keeps working
    with no changes.
    ========================================================================= */
 
@@ -491,7 +491,7 @@ if ($('#frameDesign')) {
       swatch, swatchName
     });
     if (!res) { toast('Pick a frame ratio first'); return; }
-    toast(res.overlayName + ' added \u00b7 ' + res.border + 'px moulding \u00b7 opening is in register, no need to Pick opening');
+    toast(res.overlayName + ' added \u00b7 ' + res.border + 'px moulding \u00b7 opening is in register, no need to Select design area');
   };
 }
 

@@ -71,8 +71,7 @@ function uiModal(opts) {
    liveHint(value) is optional and runs while the field is being typed in,
    debounced, and may be async. It returns null or { text, tone } where tone
    is 'ok' | 'warn' | 'error'. It is advisory only: it never blocks submit,
-   which is still decided by validate(). Publish uses it to say whether a
-   frame name is already taken in the cloud library.
+   which is still decided by validate().
 
    Resolves to an object keyed by field name, or null when cancelled. */
 function uiForm(opts) {
@@ -270,6 +269,6 @@ if (typeof removeBg === 'function') {
     imgCache.delete(out.src);
     contentCache.clear();
     sync();
-    toast('Background removed — the Canva frame PDF will now trace the real shape');
+    toast('Background removed');
   };
 }

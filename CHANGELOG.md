@@ -13,6 +13,51 @@ Reference material that is not version history lives in `docs/`.
 
 ---
 
+## Unreleased
+
+The Studio is being repurposed as Pixopik's frame generator. Everything that
+existed only to publish to Canva is removed; detection, bleed, shadow, PSD,
+the AI round trip, ratio presets and frame designs stay.
+
+### Removed
+
+- **Canva publishing.** `Publish to Canva`, `Library settings` and the
+  folder picker, plus `frameforge-worker11/` (Cloudflare Worker + R2
+  library) and `frameforge-canva-app11/` (Canva side-panel app).
+- **Bulk publish.** It only published to the Canva library.
+- **Canva PDFs.** `Canva frame PDF`, `Canva mockup PDF`, `+ Bundle` and
+  `Bundle PDF`. `09-trace-pdf.js` is now `09-trace.js` (tracer, simplifier,
+  background removal) and `15-mockup-pdf.js` is now `15-download.js`
+  (download fallback only). `08-bulk.js` is now `08-files.js`.
+- **Canva-only tooling and docs.** `test:worker`, `test:compat`,
+  `test:naming`, `test:bulk-fit`, `docs/cloud-library.md`,
+  `docs/buyer-test.md`, `NATIVE-OPTIMIZER.md`. `check:limits` no longer
+  mirrors limits into the Worker and app. The old validation report moved to
+  `docs/archive/`.
+
+`shared/frameforge-limits.js` stays: the detectors and the soft-bleed pass
+still simplify openings against its path budget.
+
+### Changed
+
+- **Shorter, grouped toolbar.** New / Open / Save / Save as mockup moved into
+  one `File ▾` menu, and Auto bleed + Shadow strength moved into `Advanced ▾`.
+- **Plain-language labels.** `Add opening` → `Add design area`,
+  `Pick opening` → `Select design area`, `Fit canvas` → `Trim canvas`,
+  `Auto screen` → `Auto-detect screens`, `Remove bg` → `Remove background`.
+- **Frames go under the mockup automatically.** A drawn Rect / Perspective
+  frame or a ratio design area is inserted directly below the lowest overlay
+  or shadow, so the "move it down with ↓" step is gone.
+- **Mockup-first empty state.** The card now leads with `Upload mockup`, and
+  dropping an image anywhere on an empty stage adds it as the mockup overlay.
+
+### Fixed
+
+- The stage empty state never appeared: it counted the "No layers yet" note
+  as a layer. It now looks for real layer rows.
+
+---
+
 ## 7.6.0
 
 Native Photoshop PSD export. Studio only: publishing, the Worker, the Canva

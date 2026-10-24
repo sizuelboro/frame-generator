@@ -8,10 +8,10 @@
 /* =========================================================================
    FrameForge — canonical platform limits (SINGLE SOURCE OF TRUTH)
    =========================================================================
-   Every consumer (Cloudflare Worker, Canva app, browser Studio) MUST use
+   The Studio's tracers and simplifiers size every opening path against
    these numbers. Do not hardcode budgets anywhere else.
 
-   Run `node tools/check-limits.mjs` to verify no consumer has drifted.
+   Run `node tools/check-limits.mjs` to verify nothing hardcodes them.
 
    Canva platform facts (Apps SDK, shape elements):
      - A shape element accepts 1..30 paths.
@@ -55,8 +55,7 @@ const MAX_COORDINATE = 1e7;
  * True when a frame is an "exact multi" silhouette, i.e. inserted as several
  * aligned full-viewBox elements that each get their own path budget.
  *
- * This predicate is the reason the Worker and the app must agree: a multi
- * frame is measured per path, a single frame is measured combined.
+ * A multi frame is measured per path, a single frame is measured combined.
  */
 function isExactMulti(frame) {
   if (!frame || frame.mode !== 'silhouette') return false;

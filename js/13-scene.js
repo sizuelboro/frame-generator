@@ -501,7 +501,7 @@ if ($('#btnSceneImport')) {
     try { res = await sceneKeyApply(L, tol); } catch (e) { res = null }
 
     if (!res) {
-      toast('No green opening found - use Pick opening to click inside it, or re-import with a higher tolerance');
+      toast('No green opening found - use Select design area to click inside it, or re-import with a higher tolerance');
       return;
     }
 

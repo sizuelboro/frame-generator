@@ -24,14 +24,14 @@ const COMMENTS = {
   '05-layers.js': 'layers, tools, hit-testing',
   '06-properties.js': 'property panel',
   '07-shadow.js': 'shadow, export, cloud publish',
-  '08-bulk.js': 'bulk publish, saved mockups, zoom',
-  '09-trace-pdf.js': 'tracer, simplifier, PDF, background removal',
+  '08-files.js': 'export, project files, saved mockups, zoom',
+  '09-trace.js': 'tracer, simplifier, background removal',
   '10-dialogs.js': 'in-app dialogs',
   '11-detect.js': 'screen + opening detection',
   '12-silhouette.js': 'silhouette and hole handling',
   '13-scene.js': 'scene plate and colour key',
   '14-wand.js': 'magic wand opening',
-  '15-mockup-pdf.js': 'whole-mockup PDF',
+  '15-download.js': 'download fallback',
   '16-build-info.js': 'build marker, loaded last',
 };
 

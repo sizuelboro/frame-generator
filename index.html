@@ -184,6 +184,8 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
   box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 30px rgba(0,0,0,.13);
 }
 .menu.open{display:flex}
+.menu.left{left:0;right:auto}
+.menu .setting{width:100%;justify-content:flex-start}
 .menu .btn{width:100%;justify-content:flex-start;border-color:transparent;background:transparent}
 .menu .btn:hover{background:var(--soft2)}
 .menu h3{
@@ -215,14 +217,6 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 }
 </style>
 
-<style id="ff-folder-picker-styles">
-.ff-folder-backdrop{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,17,21,.52);font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#171717}
-.ff-folder-dialog{display:grid;gap:16px;width:min(460px,calc(100vw - 32px));max-height:min(680px,calc(100vh - 32px));padding:20px;border:1px solid #e6e5e3;border-radius:14px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.28)}
-.ff-folder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.ff-folder-titles{display:grid;gap:3px}.ff-folder-eyebrow{color:#2783de;font-size:11px;font-weight:750;letter-spacing:.12em}.ff-folder-dialog h2{margin:0;font-size:22px;line-height:1.2}.ff-folder-dialog p{margin:0;color:#6f6d69;font-size:13px}.ff-folder-icon{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid transparent;border-radius:8px;background:#fff;color:#444;font-size:22px;cursor:pointer}.ff-folder-icon:hover{background:#f0efed}
-.ff-folder-list{display:grid;gap:6px;min-height:52px;max-height:330px;overflow:auto;padding:2px}.ff-folder-row{display:grid;grid-template-columns:28px minmax(0,1fr) 24px;align-items:center;gap:8px;width:100%;min-height:48px;padding:8px 12px;border:1px solid #e6e5e3;border-radius:10px;background:#fff;color:#2c2c2b;text-align:left;cursor:pointer}.ff-folder-row:hover{background:#f9f8f7}.ff-folder-row.selected{border-color:#8b3dff;background:#f4ecff;color:#5f1abd}.ff-folder-row-icon{font-size:18px}.ff-folder-row-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}.ff-folder-check{font-size:16px;font-weight:750;text-align:center}
-.ff-folder-create{display:grid;gap:8px}.ff-folder-new{justify-self:start;min-height:40px;padding:8px 12px;border:1px solid #d9d7d3;border-radius:8px;background:#fff;color:#5f1abd;font-weight:650;cursor:pointer}.ff-folder-new:hover{background:#f4ecff}.ff-folder-fieldrow{display:none;grid-template-columns:minmax(0,1fr) auto;gap:8px}.ff-folder-fieldrow.show{display:grid}.ff-folder-input{min-width:0;height:42px;padding:8px 11px;border:1px solid #b8b6b2;border-radius:8px;font:inherit;outline:none}.ff-folder-input:focus{border-color:#8b3dff;box-shadow:0 0 0 2px rgba(139,61,255,.15)}.ff-folder-add,.ff-folder-primary{min-height:42px;padding:8px 14px;border:1px solid #8b3dff;border-radius:8px;background:#8b3dff;color:#fff;font-weight:700;cursor:pointer}.ff-folder-add:disabled{opacity:.55}.ff-folder-error:empty{display:none}.ff-folder-error{padding:9px 10px;border-radius:8px;background:#fce9e7;color:#9a2820;font-size:12px}.ff-folder-actions{display:flex;justify-content:flex-end;gap:8px}.ff-folder-secondary{min-height:42px;padding:8px 14px;border:1px solid #d9d7d3;border-radius:8px;background:#fff;color:#2c2c2b;font-weight:650;cursor:pointer}
-@media(max-width:540px){.ff-folder-backdrop{align-items:flex-end;padding:0}.ff-folder-dialog{width:100%;max-height:88vh;border-radius:16px 16px 0 0;padding:18px}.ff-folder-list{max-height:40vh}}
-</style>
 </head>
 <body>
 <div class="app">
@@ -238,40 +232,41 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 
     <div class="sep"></div>
 
-    <!-- File -->
+    <!-- File: four actions folded into one menu -->
     <div class="grp">
-      <button class="btn" id="btnNew">New</button>
-      <button class="btn" id="btnLoadJson">Open JSON</button>
-      <button class="btn" id="btnSaveJson">Save JSON</button>
-      <button class="btn" id="btnSaveTpl">Save as mockup</button>
+      <div class="menuwrap">
+        <button class="btn" id="btnFileMenu" aria-haspopup="menu" aria-expanded="false">File <span class="caret">&#9662;</span></button>
+        <div class="menu left" id="menuFile" role="menu">
+          <button class="btn" id="btnNew">New</button>
+          <button class="btn" id="btnLoadJson">Open project (.json)</button>
+          <button class="btn" id="btnSaveJson">Save project (.json)</button>
+          <button class="btn" id="btnSaveTpl" title="Keep this mockup in the browser with empty frames, ready for any new artwork">Save as reusable mockup</button>
+        </div>
+      </div>
     </div>
 
     <div class="sep"></div>
 
     <!-- Print size first: step 0 of the creator workflow in README.md -->
     <div class="grp">
-      <select class="btn" id="ratioPreset" title="Declare the print ratio of the opening. The ratio is recorded on the frame and checked when you import the AI scene."></select>
+      <select class="btn" id="ratioPreset" title="Declare the print ratio of the design area. The ratio is recorded on the frame and checked when you import the AI scene."></select>
       <button class="btn" id="btnRatioOrient" title="Portrait or landscape">Portrait</button>
-      <button class="btn" id="btnAddRatioFrame" title="Add a bare opening at the selected print ratio">Add opening</button>
-      <select class="btn" id="frameDesign" title="Generate a mitred frame at the selected ratio from a flat swatch. Adds the moulding and its matching opening together."></select>
+      <button class="btn" id="btnAddRatioFrame" title="Add an empty design area (the opening the buyer's design drops into) at the selected print ratio">Add design area</button>
+      <select class="btn" id="frameDesign" title="Generate a mitred frame at the selected ratio from a flat swatch. Adds the moulding and its matching design area together."></select>
     </div>
 
     <div class="sep"></div>
 
     <!-- Trace: the one-click path stays visible, the rest fold away -->
     <div class="grp">
-      <button class="btn" id="btnPickOpening">Pick opening</button>
+      <button class="btn" id="btnPickOpening" title="Click inside the transparent screen or opening of your mockup to turn it into a design area">Select design area</button>
       <div class="menuwrap">
         <button class="btn" id="btnToolsMenu" aria-haspopup="menu" aria-expanded="false">Tools <span class="caret">&#9662;</span></button>
         <div class="menu" id="menuTools" role="menu">
           <h3>Detect</h3>
-          <button class="btn" id="btnAutoScreen">Auto screen</button>
-          <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
-          <button class="btn" id="btnRemoveBg">Remove bg</button>
-          <h3>Batch</h3>
-          <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk 100</button>
-          <h3>Library</h3>
-          <button class="btn" id="btnLibrarySettings">Library settings</button>
+          <button class="btn" id="btnAutoScreen">Auto-detect screens</button>
+          <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one frame">Silhouette frame</button>
+          <button class="btn" id="btnRemoveBg">Remove background</button>
         </div>
       </div>
     </div>
@@ -281,19 +276,27 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
     <!-- State, not actions -->
     <div class="grp">
       <span class="pill" id="sizePill">1200 &#215; 800</span>
-      <button class="btn" id="btnFitCanvas">Fit canvas</button>
+      <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible mockup and its frames">Trim canvas</button>
     </div>
 
     <div class="sep"></div>
 
+    <!-- Fine-tuning that most creators never touch -->
     <div class="grp">
-      <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
-      <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
+      <div class="menuwrap">
+        <button class="btn" id="btnAdvancedMenu" aria-haspopup="menu" aria-expanded="false">Advanced <span class="caret">&#9662;</span></button>
+        <div class="menu" id="menuAdvanced" role="menu">
+          <h3>Edge bleed</h3>
+          <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
+          <h3>Shadow strength</h3>
+          <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
+        </div>
+      </div>
     </div>
 
     <div class="sep"></div>
 
-    <!-- Ship. One primary action: publishing is what makes a sellable frame. -->
+    <!-- Ship -->
     <div class="grp">
       <div class="menuwrap">
         <button class="btn" id="btnExportMenu" aria-haspopup="menu" aria-expanded="false">Export <span class="caret">&#9662;</span></button>
@@ -301,11 +304,6 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
           <h3>Image</h3>
           <button class="btn" id="btnExport">Export PNG</button>
           <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
-          <h3>PDF</h3>
-          <button class="btn" id="btnCanvaPdf">Canva frame PDF</button>
-          <button class="btn" id="btnMockupPdf">Canva mockup PDF</button>
-          <button class="btn" id="btnBundleAdd">+ Bundle</button>
-          <button class="btn" id="btnBundleExport">Bundle PDF</button>
           <h3>Photoshop</h3>
           <button class="btn" id="btnExportPsd" title="Layered PSD with the opening written as a smart object: the buyer double-clicks one layer and drops their artwork in">Photoshop PSD (.psd)</button>
           <h3>AI scene round trip</h3>
@@ -313,7 +311,6 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
           <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
         </div>
       </div>
-      <button class="btn primary" id="btnPublishCloud">Publish to Canva Dev</button>
     </div>
   </header>
 
@@ -381,11 +378,11 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
         <div class="estate" id="emptyState">
           <div class="ecard">
             <svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="7" y="8.5" width="10" height="7" rx="1" stroke-dasharray="2.5 2"/></svg>
-            <h3>Pick a print size, or open a mockup photo</h3>
-            <p>Add the opening at the ratio you are selling, then choose a frame design. Already have a mockup photograph? Add it as an overlay and trace the opening instead.</p>
+            <h3>Drop your mockup PNG here</h3>
+            <p>Use a mockup whose screen or opening is transparent, then click <b>Select design area</b> to mark where the buyer's design goes. Selling a print instead? Pick a frame ratio and add a design area.</p>
             <div class="acts">
-              <button class="btn primary" id="esAddOpening">Add opening</button>
-              <button class="btn" id="esAddOverlay">Add mockup overlay</button>
+              <button class="btn primary" id="esAddOverlay">Upload mockup</button>
+              <button class="btn" id="esAddOpening">Add design area</button>
             </div>
             <div class="tip">Rect frame <b>R</b> &#183; Perspective <b>P</b> &#183; Text <b>T</b> &#183; Shape <b>S</b></div>
           </div>
@@ -415,14 +412,14 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 <script src="js/05-layers.js"></script><!-- layers, tools, hit-testing -->
 <script src="js/06-properties.js"></script><!-- property panel -->
 <script src="js/07-shadow.js"></script><!-- shadow, export, cloud publish -->
-<script src="js/08-bulk.js"></script><!-- bulk publish, saved mockups, zoom -->
-<script src="js/09-trace-pdf.js"></script><!-- tracer, simplifier, PDF, background removal -->
+<script src="js/08-files.js"></script><!-- export, project files, saved mockups, zoom -->
+<script src="js/09-trace.js"></script><!-- tracer, simplifier, background removal -->
 <script src="js/10-dialogs.js"></script><!-- in-app dialogs -->
 <script src="js/11-detect.js"></script><!-- screen + opening detection -->
 <script src="js/12-silhouette.js"></script><!-- silhouette and hole handling -->
 <script src="js/13-scene.js"></script><!-- scene plate and colour key -->
 <script src="js/14-wand.js"></script><!-- magic wand opening -->
-<script src="js/15-mockup-pdf.js"></script><!-- whole-mockup PDF -->
+<script src="js/15-download.js"></script><!-- download fallback -->
 <script src="js/16-build-info.js"></script><!-- build marker -->
 <script src="js/17-ratio-presets.js"></script><!-- print-size ratio presets -->
 <script src="js/18-frame-designs.js"></script><!-- generated mitred frame designs -->
