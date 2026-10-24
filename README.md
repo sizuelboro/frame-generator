@@ -1,8 +1,9 @@
 # FrameForge
 
-Turn a mockup image into a **native Canva frame** — a real Canva shape with a
-`dropTarget` path. The buyer needs nothing installed, and the element behaves
-like any other Canva frame.
+Turn a mockup image into a photo frame: a transparent overlay plus the
+opening a photo drops into. Being repurposed as the frame generator for
+Pixopik; the Canva publishing path (Worker, Canva app, PDFs, Bulk publish)
+has been removed.
 
 Version **7.6.0**. See [CHANGELOG.md](CHANGELOG.md).
 
@@ -11,12 +12,10 @@ Version **7.6.0**. See [CHANGELOG.md](CHANGELOG.md).
 | Path | What it is |
 | --- | --- |
 | `index.html` + `js/` | FrameForge Studio, the browser editor. Deploys to Cloudflare Pages. |
-| `frameforge-worker11/` | Cloudflare Worker + R2 frame library. |
-| `frameforge-canva-app11/` | Canva side-panel app. |
-| `shared/frameforge-limits.js` | **Single source of truth** for Canva platform limits. |
-| `tools/` | Limits generator, drift guards, deploy sync, test runners. |
+| `shared/frameforge-limits.js` | **Single source of truth** for the path limits the tracers simplify against. |
+| `tools/` | Limits generator, guards, deploy sync, test runners. |
 | `tests/` | Studio browser suite. |
-| `docs/` | Architecture, deploy, cloud library, PSD export, buyer checklist, validation. |
+| `docs/` | Architecture, deploy, PSD export, validation. |
 | `docs/archive/` | Superseded release notes. History only — do not treat as current. |
 | `mockups/` | Sample overlay and thumbnail assets. |
 | `repo/` | **Generated** Cloudflare Pages deploy mirror. Never edit by hand. |
@@ -28,23 +27,15 @@ npm install          # root has no runtime deps; installs nothing to ship
 npm test             # limits + script order + deploy mirror guards, then all tests
 ```
 
-Per package:
-
-```bash
-cd frameforge-worker11     && npm install && npx wrangler deploy
-cd frameforge-canva-app11  && npm install && npm run build
-```
-
 Full instructions: [docs/deploy.md](docs/deploy.md).
 
 ## Working on this
 
-**Never hardcode a Canva path budget.** Edit
-`shared/frameforge-limits.js`, then:
+**Never hardcode a path budget.** Edit `shared/frameforge-limits.js`, then:
 
 ```bash
 npm run build:limits   # regenerates js/01-limits.js for the Studio
-npm run check:limits   # fails if any layer drifted
+npm run check:limits   # fails if a script hardcodes a budget
 ```
 
 The Studio is a bundle of **ordered classic scripts**, not ES modules. They
@@ -115,11 +106,8 @@ which is exactly how a "US Letter" opening (0.773) ends up sold as A4 (0.707).
    fixed amount — overlay opacity is measured per opening vertex and thin
    borders get less automatically.
 3. **Trim canvas.**
-4. **Publish to Canva.** Every publish creates a new entry; an existing
-   frame is never replaced. A name that is already taken is numbered
-   (`Floral Arch 2`), and the dialog tells you before you publish.
-5. **Refresh library** in the Canva app.
-6. Insert a **new** copy to test — already-inserted elements never update.
+4. **Export ▾ · Export overlay PNG** — writes the transparent overlay and
+   `frame-coords.json` (the opening points, with bleed applied).
 
 ## Photoshop PSD export
 
@@ -148,8 +136,7 @@ reads correctly.
   toast says how many. A wrong file is never written silently.
 - The placeholder art inside the smart object is either the built-in
   "YOUR DESIGN" card or the artwork currently in the frame.
-- Publishing, the Worker, the Canva app, detection, bleed and shadow are not
-  touched by this path.
+- Detection, bleed and shadow are not touched by this path.
 
 Details and the byte layout: [docs/psd-export.md](docs/psd-export.md).
 
@@ -161,13 +148,7 @@ Select or add an image, then **Silhouette frame**.
 - Opaque images have their background cleared inward from the canvas edges,
   so colours enclosed by the subject survive.
 - The source layer is hidden, not deleted, and one polygon frame is created.
-- Publish that frame; no source photo or overlay is baked into the element.
 - Cuts that reach the outside are always preserved. Fully enclosed holes are
   bridged and verified — up to six per contour. Anything that cannot be cut
   is reported rather than silently filled, and Smart Mask gives an exact
   cut-out.
-
-## Before you sell
-
-`npm test` covers the code. Canva account behaviour it cannot reach:
-work through [docs/buyer-test.md](docs/buyer-test.md).

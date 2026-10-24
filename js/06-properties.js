@@ -31,7 +31,7 @@ function refreshProps() {
           <b>2.</b> Click <b>Select design area</b>, then click inside the screen. Or draw a <b>Rect</b> / <b>Perspective</b> frame over it.<br>
           <b>3.</b> New frames go under the mockup automatically.<br>
           <b>4.</b> Optional: set a preview image in the frame, then drag / scroll to fit.<br>
-          <b>5.</b> <b>Publish to Canva</b>, or <b>File → Save as reusable mockup</b>.
+          <b>5.</b> <b>Export</b> the overlay PNG + frame coordinates, or <b>File → Save as reusable mockup</b>.
         </div>
       </div>`;
     $('#cw').onchange = (e) => { doc.canvas.w = clamp(+e.target.value || 1200, 50, 6000); sizePill(); sync(); };

@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /* =========================================================================
-   Guard against limit drift across the three layers.
+   Guard the path limits the Studio's tracers simplify against.
    =========================================================================
-   The original bug this prevents: the Worker rejected published frames at
-   1980 bytes while the Canva app accepted them at 2048, so a frame could
-   validate locally and then fail in the cloud.
+   shared/frameforge-limits.js is the only place the numbers live. The Studio
+   must read them from FF_LIMITS rather than hardcode a budget.
 
    Run: node tools/check-limits.mjs
    ========================================================================= */
@@ -39,31 +38,9 @@ function readConsts(relPath) {
   return found;
 }
 
-const SOURCES = {
-  'shared/frameforge-limits.js (source of truth)': 'shared/frameforge-limits.js',
-  'frameforge-worker11/src/shared/frameforge-limits.js': 'frameforge-worker11/src/shared/frameforge-limits.js',
-  'frameforge-canva-app11/src/limits.ts': 'frameforge-canva-app11/src/limits.ts',
-};
-
-const values = {};
-for (const [label, path] of Object.entries(SOURCES)) values[label] = readConsts(path);
-
-const truthLabel = 'shared/frameforge-limits.js (source of truth)';
-const truth = values[truthLabel];
+const truth = readConsts('shared/frameforge-limits.js');
 const problems = [];
-
-for (const [label, consts] of Object.entries(values)) {
-  if (label === truthLabel) continue;
-  for (const key of KEYS) {
-    if (!(key in consts)) {
-      problems.push(`${label}: missing ${key}`);
-      continue;
-    }
-    if (consts[key] !== truth[key]) {
-      problems.push(`${label}: ${key} is ${consts[key]}, expected ${truth[key]}`);
-    }
-  }
-}
+for (const key of KEYS) if (!(key in truth)) problems.push(`shared/frameforge-limits.js: missing ${key}`);
 
 /* The Studio is a classic-script bundle; it must not hardcode a budget.
    js/01-limits.js is generated from the source of truth, so it is exempt.
@@ -98,10 +75,10 @@ if (/<script(?![^>]*\bsrc=)/.test(studio)) {
 if (problems.length) {
   console.error('Limit drift detected:\n');
   for (const problem of problems) console.error('  - ' + problem);
-  console.error('\nEdit shared/frameforge-limits.js, then mirror it. Do not edit one side alone.');
+  console.error('\nEdit shared/frameforge-limits.js, then run npm run build:limits.');
   process.exit(1);
 }
 
-console.log('Limits are consistent across all layers:');
+console.log('Limits are consistent:');
 for (const key of KEYS) console.log(`  ${key} = ${truth[key]}`);
 process.exit(0);

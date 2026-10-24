@@ -217,14 +217,6 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 }
 </style>
 
-<style id="ff-folder-picker-styles">
-.ff-folder-backdrop{position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,17,21,.52);font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#171717}
-.ff-folder-dialog{display:grid;gap:16px;width:min(460px,calc(100vw - 32px));max-height:min(680px,calc(100vh - 32px));padding:20px;border:1px solid #e6e5e3;border-radius:14px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.28)}
-.ff-folder-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.ff-folder-titles{display:grid;gap:3px}.ff-folder-eyebrow{color:#2783de;font-size:11px;font-weight:750;letter-spacing:.12em}.ff-folder-dialog h2{margin:0;font-size:22px;line-height:1.2}.ff-folder-dialog p{margin:0;color:#6f6d69;font-size:13px}.ff-folder-icon{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid transparent;border-radius:8px;background:#fff;color:#444;font-size:22px;cursor:pointer}.ff-folder-icon:hover{background:#f0efed}
-.ff-folder-list{display:grid;gap:6px;min-height:52px;max-height:330px;overflow:auto;padding:2px}.ff-folder-row{display:grid;grid-template-columns:28px minmax(0,1fr) 24px;align-items:center;gap:8px;width:100%;min-height:48px;padding:8px 12px;border:1px solid #e6e5e3;border-radius:10px;background:#fff;color:#2c2c2b;text-align:left;cursor:pointer}.ff-folder-row:hover{background:#f9f8f7}.ff-folder-row.selected{border-color:#8b3dff;background:#f4ecff;color:#5f1abd}.ff-folder-row-icon{font-size:18px}.ff-folder-row-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}.ff-folder-check{font-size:16px;font-weight:750;text-align:center}
-.ff-folder-create{display:grid;gap:8px}.ff-folder-new{justify-self:start;min-height:40px;padding:8px 12px;border:1px solid #d9d7d3;border-radius:8px;background:#fff;color:#5f1abd;font-weight:650;cursor:pointer}.ff-folder-new:hover{background:#f4ecff}.ff-folder-fieldrow{display:none;grid-template-columns:minmax(0,1fr) auto;gap:8px}.ff-folder-fieldrow.show{display:grid}.ff-folder-input{min-width:0;height:42px;padding:8px 11px;border:1px solid #b8b6b2;border-radius:8px;font:inherit;outline:none}.ff-folder-input:focus{border-color:#8b3dff;box-shadow:0 0 0 2px rgba(139,61,255,.15)}.ff-folder-add,.ff-folder-primary{min-height:42px;padding:8px 14px;border:1px solid #8b3dff;border-radius:8px;background:#8b3dff;color:#fff;font-weight:700;cursor:pointer}.ff-folder-add:disabled{opacity:.55}.ff-folder-error:empty{display:none}.ff-folder-error{padding:9px 10px;border-radius:8px;background:#fce9e7;color:#9a2820;font-size:12px}.ff-folder-actions{display:flex;justify-content:flex-end;gap:8px}.ff-folder-secondary{min-height:42px;padding:8px 14px;border:1px solid #d9d7d3;border-radius:8px;background:#fff;color:#2c2c2b;font-weight:650;cursor:pointer}
-@media(max-width:540px){.ff-folder-backdrop{align-items:flex-end;padding:0}.ff-folder-dialog{width:100%;max-height:88vh;border-radius:16px 16px 0 0;padding:18px}.ff-folder-list{max-height:40vh}}
-</style>
 </head>
 <body>
 <div class="app">
@@ -273,12 +265,8 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
         <div class="menu" id="menuTools" role="menu">
           <h3>Detect</h3>
           <button class="btn" id="btnAutoScreen">Auto-detect screens</button>
-          <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
+          <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one frame">Silhouette frame</button>
           <button class="btn" id="btnRemoveBg">Remove background</button>
-          <h3>Batch</h3>
-          <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk publish</button>
-          <h3>Library</h3>
-          <button class="btn" id="btnLibrarySettings">Library settings</button>
         </div>
       </div>
     </div>
@@ -308,7 +296,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 
     <div class="sep"></div>
 
-    <!-- Ship. One primary action: publishing is what makes a sellable frame. -->
+    <!-- Ship -->
     <div class="grp">
       <div class="menuwrap">
         <button class="btn" id="btnExportMenu" aria-haspopup="menu" aria-expanded="false">Export <span class="caret">&#9662;</span></button>
@@ -316,11 +304,6 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
           <h3>Image</h3>
           <button class="btn" id="btnExport">Export PNG</button>
           <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
-          <h3>PDF</h3>
-          <button class="btn" id="btnCanvaPdf">Canva frame PDF</button>
-          <button class="btn" id="btnMockupPdf">Canva mockup PDF</button>
-          <button class="btn" id="btnBundleAdd">+ Bundle</button>
-          <button class="btn" id="btnBundleExport">Bundle PDF</button>
           <h3>Photoshop</h3>
           <button class="btn" id="btnExportPsd" title="Layered PSD with the opening written as a smart object: the buyer double-clicks one layer and drops their artwork in">Photoshop PSD (.psd)</button>
           <h3>AI scene round trip</h3>
@@ -328,7 +311,6 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
           <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
         </div>
       </div>
-      <button class="btn primary" id="btnPublishCloud" title="Publish this frame to your FrameForge library for the Canva app">Publish to Canva</button>
     </div>
   </header>
 
@@ -430,14 +412,14 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 <script src="js/05-layers.js"></script><!-- layers, tools, hit-testing -->
 <script src="js/06-properties.js"></script><!-- property panel -->
 <script src="js/07-shadow.js"></script><!-- shadow, export, cloud publish -->
-<script src="js/08-bulk.js"></script><!-- bulk publish, saved mockups, zoom -->
-<script src="js/09-trace-pdf.js"></script><!-- tracer, simplifier, PDF, background removal -->
+<script src="js/08-files.js"></script><!-- export, project files, saved mockups, zoom -->
+<script src="js/09-trace.js"></script><!-- tracer, simplifier, background removal -->
 <script src="js/10-dialogs.js"></script><!-- in-app dialogs -->
 <script src="js/11-detect.js"></script><!-- screen + opening detection -->
 <script src="js/12-silhouette.js"></script><!-- silhouette and hole handling -->
 <script src="js/13-scene.js"></script><!-- scene plate and colour key -->
 <script src="js/14-wand.js"></script><!-- magic wand opening -->
-<script src="js/15-mockup-pdf.js"></script><!-- whole-mockup PDF -->
+<script src="js/15-download.js"></script><!-- download fallback -->
 <script src="js/16-build-info.js"></script><!-- build marker -->
 <script src="js/17-ratio-presets.js"></script><!-- print-size ratio presets -->
 <script src="js/18-frame-designs.js"></script><!-- generated mitred frame designs -->

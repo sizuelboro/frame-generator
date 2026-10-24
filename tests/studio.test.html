@@ -197,19 +197,12 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
     <div class="spacer"></div>
     <span class="pill" id="sizePill">1200 × 800</span>
     <button class="btn" id="btnFitCanvas">Fit canvas</button>
-    <button class="btn" id="btnLibrarySettings">Library settings</button>
-    <button class="btn primary" id="btnPublishCloud">Publish to Canva Dev</button>
-    <button class="btn" id="btnBulk100" title="Process and publish up to 100 overlays or silhouettes">Bulk 100</button>
     <button class="btn" id="btnAutoScreen">Auto screen</button>
     <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one native Canva drop target">Silhouette frame</button>
     <button class="btn" id="btnPickOpening">Pick opening</button>
     <button class="btn" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
     <button class="btn" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
     <button class="btn" id="btnRemoveBg">Remove bg</button>
-    <button class="btn" id="btnCanvaPdf">Canva frame PDF</button>
-    <button class="btn" id="btnMockupPdf">Canva mockup PDF</button>
-    <button class="btn" id="btnBundleAdd">+ Bundle</button>
-    <button class="btn" id="btnBundleExport">Bundle PDF</button>
     <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt">Export for AI</button>
     <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
     <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
@@ -321,15 +314,15 @@ window.addEventListener('unhandledrejection', function (e) {
 <script src="../js/04-render.js"></script><!-- canvas renderer -->
 <script src="../js/05-layers.js"></script><!-- layers, tools, hit-testing -->
 <script src="../js/06-properties.js"></script><!-- property panel -->
-<script src="../js/07-shadow.js"></script><!-- shadow, export, cloud publish -->
-<script src="../js/08-bulk.js"></script><!-- bulk publish, saved mockups, zoom -->
-<script src="../js/09-trace-pdf.js"></script><!-- tracer, simplifier, PDF, background removal -->
+<script src="../js/07-shadow.js"></script><!-- shadow, export, bleed -->
+<script src="../js/08-files.js"></script><!-- export, project files, saved mockups, zoom -->
+<script src="../js/09-trace.js"></script><!-- tracer, simplifier, background removal -->
 <script src="../js/10-dialogs.js"></script><!-- in-app dialogs -->
 <script src="../js/11-detect.js"></script><!-- screen + opening detection -->
 <script src="../js/12-silhouette.js"></script><!-- silhouette and hole handling -->
 <script src="../js/13-scene.js"></script><!-- scene plate and colour key -->
 <script src="../js/14-wand.js"></script><!-- magic wand opening -->
-<script src="../js/15-mockup-pdf.js"></script><!-- whole-mockup PDF -->
+<script src="../js/15-download.js"></script><!-- download fallback -->
 <script src="../js/16-build-info.js"></script><!-- build marker -->
 <script src="../js/17-ratio-presets.js"></script><!-- print-size ratio presets -->
 <script src="../js/18-frame-designs.js"></script><!-- generated mitred frame designs -->
@@ -418,13 +411,11 @@ function testBundle() {
   chk('renderer defined', typeof render === 'function');
   chk('uiForm defined', typeof uiForm === 'function');
   chk('uiNumber defined', typeof uiNumber === 'function');
-  chk('cloudLibraryConfig defined', typeof cloudLibraryConfig === 'function');
   chk('removeBg defined', typeof removeBg === 'function');
   chk('detectSilhouette defined', typeof detectSilhouette === 'function');
-  chk('bulkPrepareOne defined', typeof bulkPrepareOne === 'function');
   chk('canvas element present', !!document.querySelector('canvas'));
 
-  var buttons = ['#btnNew', '#btnSaveTpl', '#btnRemoveBg', '#btnPublishCloud', '#btnOpeningBleed', '#btnFitCanvas', '#btnLibrarySettings'];
+  var buttons = ['#btnNew', '#btnSaveTpl', '#btnRemoveBg', '#btnOpeningBleed', '#btnFitCanvas'];
   for (var i = 0; i < buttons.length; i++) {
     var el = document.querySelector(buttons[i]);
     chk('handler bound: ' + buttons[i], !!(el && el.onclick));
@@ -462,24 +453,6 @@ async function testDialogs() {
       chk('value was applied', document.querySelector('#btnOpeningBleed').textContent.indexOf('8') >= 0,
         document.querySelector('#btnOpeningBleed').textContent);
     }
-  }
-
-  document.querySelector('#btnLibrarySettings').click();
-  await sleep(250);
-  var d2 = dlg();
-  chk('library settings dialog opens', !!d2);
-  if (d2) {
-    var inputs = d2.querySelectorAll('input');
-    chk('asks for URL and token together', inputs.length === 2, String(inputs.length));
-    chk('admin token input is masked', !!(inputs[1] && inputs[1].type === 'password'), inputs[1] ? inputs[1].type : '');
-    inputs[0].value = 'ftp://nope';
-    inputs[1].value = 'some-token';
-    d2.querySelector('button[type=submit]').click();
-    await sleep(150);
-    chk('non-HTTPS Worker URL is rejected', !!dlg());
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await sleep(200);
-    chk('Escape cancels', !dlg());
   }
 }
 
@@ -613,9 +586,6 @@ async function testExistingFeatures() {
     chk('saved mockup has a thumbnail', saved.length > 0 && typeof saved[0].thumb === 'string' && saved[0].thumb.indexOf('data:image') === 0);
   }
 
-  // --- publish guard rails still fire without a configured worker ---
-  chk('publish button still enabled', !document.querySelector('#btnPublishCloud').disabled);
-
   chk('no runtime errors after feature pass', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
 }
 
@@ -747,7 +717,7 @@ async function testMultiOpening() {
     chk('per-screen quads leave the gap between screens empty', coverCount(quadDs, 130, 190) === 0);
   }
 
-  /* --- e) cost: Bulk 100 runs detection once per file -----------------
+  /* --- e) cost: detection runs once per file ---------------------------
      Chromium runs this suite on a virtual clock, so wall-clock timing is
      meaningless here. Count the morphology passes instead - that is where
      detection spends its time. _holeMask() is computed once and shared by
@@ -779,13 +749,8 @@ async function testMultiOpening() {
 }
 
 /* --------------- 7. multi-opening through the real pipelines --------------- */
-async function dataUrlToFile(dataUrl, name) {
-  var blob = await (await fetch(dataUrl)).blob();
-  return new File([blob], name, { type: 'image/png' });
-}
-
 async function testMultiOpeningPipelines() {
-  section('7. multi-opening through Studio + bulk');
+  section('7. multi-opening through Studio');
 
   var SIZE = 400;
   var three = [[40, 90, 90, 200], [155, 90, 90, 200], [270, 90, 90, 200]];
@@ -839,42 +804,6 @@ async function testMultiOpeningPipelines() {
   chk('single opening still makes exactly one frame', oneFrame.length === 1, 'frames=' + oneFrame.length);
   chk('single frame keeps its original name', oneFrame.length === 1 && oneFrame[0].name === 'Opening Frame',
     oneFrame.length ? oneFrame[0].name : '');
-
-  /* --- bulk: the published payload carries all three drop targets ---- */
-  doc.layers = [];
-  var prepared = null, bulkError = '';
-  try {
-    prepared = await bulkPrepareOne(await dataUrlToFile(src, 'Three Posters.png'), 'overlay', 'Three Posters', null);
-  } catch (error) { bulkError = error && error.message; }
-  chk('bulk prepared the multi-opening mockup', !!prepared, bulkError);
-  if (prepared) {
-    chk('bulk payload has three drop-target paths', prepared.payload.paths.length === 3,
-      'paths=' + prepared.payload.paths.length);
-    chk('bulk payload stays in overlay mode', prepared.payload.mode === 'overlay');
-    chk('bulk reports the opening count in its detection label',
-      prepared.detection.indexOf('3') !== -1, prepared.detection);
-    var combined = new TextEncoder().encode(
-      ['M 0 0 H ' + doc.canvas.w + ' V ' + doc.canvas.h + ' H 0 Z'].concat(prepared.payload.paths).join('')).length;
-    chk('bulk payload respects the combined budget', combined <= FF_PATH_BUDGET, combined + '/' + FF_PATH_BUDGET);
-    chk('bulk payload would pass the shared budget rule',
-      FF_LIMITS.measurePathBudget({ mode: 'overlay', w: doc.canvas.w, h: doc.canvas.h, paths: prepared.payload.paths }).ok);
-    chk('bulk payload has at most MAX_PATHS_SINGLE paths', prepared.payload.paths.length <= FF_MAX_PATHS_SINGLE);
-  }
-
-  /* --- bulk single opening keeps one path --------------------------- */
-  doc.layers = [];
-  var one = null, oneError = '';
-  try {
-    one = await bulkPrepareOne(
-      await dataUrlToFile(cardWithWindows(SIZE, SIZE, [[140, 120, 120, 160]]), 'One Poster.png'),
-      'overlay', 'One Poster', null);
-  } catch (error) { oneError = error && error.message; }
-  chk('bulk still prepares a single-opening mockup', !!one, oneError);
-  if (one) {
-    chk('single-opening bulk payload has exactly one path', one.payload.paths.length === 1,
-      'paths=' + one.payload.paths.length);
-    chk('single-opening detection label is unchanged', one.detection === 'opening', one.detection);
-  }
 
   chk('no runtime errors after pipeline pass', window.__ffErrors.length === 0, window.__ffErrors.join(' | '));
 }
