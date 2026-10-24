@@ -429,6 +429,11 @@ async function testInspector() {
   chk('selecting the opening keeps the preview', !!$('#liveSlot') && $('#livePreview') === live && shown('#qPhoto'));
   G('sel = null; sync()');
 
+  chk('there is no hand-added Shadow layer button any more', !D.querySelector('[data-act="addShadow"]'));
+  chk('More -> Shadow is hidden while the design has no shadow layer', $('#btnShadowStrength').classList.contains('hidden'));
+  G("doc.layers.push({ id: 'sh1', type: 'shadow', name: 'Scene Shadow', visible: true, locked: true, opacity: 1, src: '', x: 0, y: 0, w: 10, h: 10, rotation: 0 }); sync()");
+  chk('and shown once one exists (AI scene import)', !$('#btnShadowStrength').classList.contains('hidden'));
+  G("doc.layers = doc.layers.filter(function (l) { return l.id !== 'sh1'; }); sync()");
   chk('the export step is sticky, so it never scrolls away', W.getComputedStyle($('#stepExport')).position === 'sticky');
   chk('no script errors in the inspector', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
 }

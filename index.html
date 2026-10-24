@@ -506,7 +506,7 @@ body[data-mode="image"] [data-only~="image"]{display:block}
           <h3>Canvas <span class="pill" id="sizePill" style="margin-left:auto;letter-spacing:0">1200 &#215; 800</span></h3>
           <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible artwork and its openings. Export for Pixopik does this for you."><svg class="ic"><use href="#i-crop"/></svg>Trim canvas</button>
           <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
-          <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
+          <button class="setting hidden" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
           <h3>Other exports</h3>
           <button class="btn" id="btnExport"><svg class="ic"><use href="#i-image"/></svg>Export PNG</button>
           <button class="btn" id="btnExportOverlay"><svg class="ic"><use href="#i-export"/></svg>Export overlay PNG + coordinates</button>
@@ -604,7 +604,6 @@ body[data-mode="image"] [data-only~="image"]{display:block}
                 <button class="tool" data-tool="shape"><svg class="ic"><use href="#i-shape"/></svg>Shape <span class="k">S</span></button>
               </div>
               <button class="tool" data-act="addImage"><svg class="ic"><use href="#i-image"/></svg>Image layer</button>
-              <button class="tool" data-act="addShadow"><svg class="ic"><use href="#i-shadow"/></svg>Shadow layer</button>
               <button class="tool" data-act="addOverlay" data-only="image"><svg class="ic"><use href="#i-layers"/></svg>Another artwork layer</button>
               <button class="tool" id="btnSilhouetteFrame" data-only="image" title="Trace the visible subject into one frame"><svg class="ic"><use href="#i-silhouette"/></svg>Silhouette frame</button>
             </div>

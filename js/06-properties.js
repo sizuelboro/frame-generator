@@ -206,6 +206,9 @@ function ffStatusHtml() {
 
 function refreshProps() {
   const box = $('#right');
+  // More -> Shadow: only meaningful when a shadow layer exists (AI scene import)
+  const shadowSetting = $('#btnShadowStrength');
+  if (shadowSetting) shadowSetting.classList.toggle('hidden', !doc.layers.some(l => l.type === 'shadow'));
   const L = layer(sel);
   if (!L) {
     box.innerHTML = `
