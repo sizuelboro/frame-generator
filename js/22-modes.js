@@ -46,13 +46,6 @@ const ffGen = {
 
 window.ffStudioMode = null;
 
-/* The bundled demo (a laptop) is loaded at boot by 08-files.js. Choosing a
-   mode replaces it with a clean canvas, but only while it is untouched. */
-const _ffBootIds = doc.layers.map(l => l.id).join(',');
-function ffIsBootDemo() {
-  return doc.layers.length > 0 && doc.layers.map(l => l.id).join(',') === _ffBootIds;
-}
-
 function ffBlankDoc(w, h) {
   doc = { canvas: { w: w || 1200, h: h || 800, bg: '#FFFFFF' }, layers: [] };
   sel = null; contentEdit = null; contentCache.clear();
@@ -83,7 +76,8 @@ function ffSetMode(mode) {
 
 /* Picking a mode from the chooser or the toolbar. */
 function ffChooseMode(mode) {
-  if (ffIsBootDemo()) ffBlankDoc(mode === 'generate' ? 1000 : 1200, mode === 'generate' ? 1000 : 800);
+  // a square canvas suits Generate, where portrait and landscape both fit
+  if (mode === 'generate' && !doc.layers.length) ffBlankDoc(1000, 1000);
   ffSetMode(mode);
   // Draw a first frame straight away on a clean canvas, so Generate never
   // opens on nothing. Existing work is left alone: switching is only a view.
@@ -109,7 +103,7 @@ document.querySelectorAll('[data-mode-tab]').forEach(b =>
    picked, take the mode from what it contains. */
 if ($('#layerList') && typeof MutationObserver === 'function') {
   new MutationObserver(() => {
-    if (!window.ffStudioMode && doc.layers.length && !ffIsBootDemo()) ffSetMode(ffInferMode());
+    if (!window.ffStudioMode && doc.layers.length) ffSetMode(ffInferMode());
     else ffSyncStage();
   }).observe($('#layerList'), { childList: true });
 }
@@ -121,7 +115,6 @@ document.addEventListener('drop', (ev) => {
   if (window.ffStudioMode) return;
   const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
   if (!f || !/^image\//.test(f.type) || !$('#wrap') || !$('#wrap').contains(ev.target)) return;
-  if (ffIsBootDemo()) ffBlankDoc(1200, 800);
   ffSetMode('image');
 }, true);
 
@@ -129,7 +122,7 @@ document.addEventListener('drop', (ev) => {
    10-dialogs.js, which only cleared the canvas. */
 if ($('#btnNew')) {
   $('#btnNew').onclick = async () => {
-    if (doc.layers.length && !ffIsBootDemo()) {
+    if (doc.layers.length) {
       const go = await uiConfirm('Start a new frame?', 'Unsaved work on this canvas will be lost.', 'Start new');
       if (!go) return;
     }

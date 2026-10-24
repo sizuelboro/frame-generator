@@ -228,7 +228,7 @@ const TYPE_LABEL = { frame: 'Frame', image: 'Image', overlay: 'Overlay (locked o
 function refreshLayers() {
   const box = $('#layerList');
   box.innerHTML = '';
-  if (!doc.layers.length) { box.innerHTML = '<div class="empty">No layers yet. Add a mockup overlay, then draw a frame on it.</div>'; return; }
+  if (!doc.layers.length) { box.innerHTML = '<div class="empty">No layers yet.</div>'; return; }
   [...doc.layers].reverse().forEach((L) => {
     const el = document.createElement('div');
     el.className = 'layer' + (L.id === sel ? ' on' : '') + (L.visible ? '' : ' dim');

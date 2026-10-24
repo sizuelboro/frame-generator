@@ -30,7 +30,8 @@ function refreshProps() {
           <b>1.</b> Pick a <b>shape</b> on the left.<br>
           <b>2.</b> Click a <b>style</b>. The frame is drawn at once; changing the shape, style or border width redraws it.<br>
           <b>3.</b> Optional: click the opening and <b>Set image</b> to preview a photo.<br>
-          <b>4.</b> <b>Export for Pixopik</b>.` : `
+          <b>4.</b> <b>Export for Pixopik</b>.` : !window.ffStudioMode ? `
+          Pick <b>Generate</b> to have a frame drawn for you, or <b>From image</b> to start from your own frame PNG.` : `
           <b>1.</b> Upload or drop your frame PNG (the opening should be transparent).<br>
           <b>2.</b> Press <b>Auto-detect opening</b>, or <b>Select manually</b> and click inside the opening. You can also draw a <b>Rect</b> / <b>Perspective</b> opening.<br>
           <b>3.</b> New openings go under the artwork automatically.<br>

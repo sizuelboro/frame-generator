@@ -307,7 +307,7 @@ window.addEventListener('unhandledrejection', function (e) {
   window.__ffErrors.push('REJECTION: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
 });
 </script>
-<script src="../js/00-demo-overlay.js"></script><!-- bundled demo artwork -->
+<script src="fixtures/demo-overlay.js"></script><!-- laptop artwork, a test fixture only -->
 <script src="../js/01-limits.js"></script><!-- GENERATED from shared/frameforge-limits.js -->
 <script src="../js/02-state.js"></script><!-- document state + image cache -->
 <script src="../js/03-geometry.js"></script><!-- homography and quad warping -->
@@ -406,7 +406,7 @@ function testBundle() {
   chk('PATH_BUDGET is 1980', window.FF_LIMITS && window.FF_LIMITS.PATH_BUDGET === 1980, String(window.FF_LIMITS && window.FF_LIMITS.PATH_BUDGET));
   chk('FF_PATH_BUDGET wired into the Studio', typeof FF_PATH_BUDGET !== 'undefined' && FF_PATH_BUDGET === 1980);
   chk('no hardcoded 2048 budget survives', FF_LIMITS.CANVA_HARD_PATH_LIMIT === 2048 && FF_PATH_BUDGET < 2048);
-  chk('demo overlay split out and loaded', typeof window.DEMO_OVERLAY === 'string' && window.DEMO_OVERLAY.length > 1000);
+  chk('laptop fixture loaded', typeof window.DEMO_OVERLAY === 'string' && window.DEMO_OVERLAY.length > 1000);
   chk('document state built', typeof doc === 'object' && doc && typeof doc.canvas === 'object');
   chk('renderer defined', typeof render === 'function');
   chk('uiForm defined', typeof uiForm === 'function');
@@ -530,8 +530,21 @@ async function testExistingFeatures() {
     await sleep(120);
   }
 
-  // --- demo scene loaded its layers ---
-  chk('demo layers present', Array.isArray(doc.layers) && doc.layers.length >= 2, 'layers=' + doc.layers.length);
+  // --- the Studio boots empty; build the laptop scene from the fixture ---
+  chk('the Studio boots on an empty canvas', Array.isArray(doc.layers) && doc.layers.length === 0, 'layers=' + doc.layers.length);
+  var S = window.DEMO_SCREEN || { w: 1200, h: 800, corners: [[172, 66], [1027, 66], [1026, 540], [174, 540]] };
+  doc = {
+    canvas: { w: S.w, h: S.h, bg: '#FFFFFF' },
+    layers: [
+      { id: uid(), type: 'frame', name: 'Laptop Screen Frame', frameType: 'rect', visible: true, locked: false, opacity: 1,
+        points: S.corners.map(function (c) { return { x: c[0], y: c[1] }; }), content: null },
+      { id: uid(), type: 'overlay', name: 'Laptop Mockup Overlay', visible: true, locked: true, opacity: 1,
+        src: window.DEMO_OVERLAY, x: 0, y: 0, w: S.w, h: S.h, rotation: 0 }
+    ]
+  };
+  sync();
+  await sleep(300);
+  chk('laptop scene built', doc.layers.length === 2, 'layers=' + doc.layers.length);
   var overlay = doc.layers.filter(function (l) { return l.type === 'overlay'; })[0];
   var frame = doc.layers.filter(function (l) { return l.type === 'frame'; })[0];
   chk('overlay layer present', !!overlay);

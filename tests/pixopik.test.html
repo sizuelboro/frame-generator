@@ -37,6 +37,14 @@ async function settled() {
 var W, D;
 function $(s) { return D.querySelector(s); }
 function shown(s) { var el = $(s); return !!el && W.getComputedStyle(el).display !== 'none' && el.offsetParent !== null; }
+/* A flat 300x200 PNG, for a preview photo or a piece of artwork. */
+function solidPng() {
+  var c = D.createElement('canvas');
+  c.width = 300; c.height = 200;
+  var x = c.getContext('2d');
+  x.fillStyle = '#2783DE'; x.fillRect(0, 0, 300, 200);
+  return c.toDataURL('image/png');
+}
 /* `let` / `const` globals of the bundle are not window properties. */
 function G(expr) { return W.eval(expr); }
 function click(s) { var el = typeof s === 'string' ? $(s) : s; el.click(); }
@@ -61,6 +69,7 @@ async function testModes() {
   chk('every module ran to the end', typeof W.ffChooseMode === 'function' &&
     typeof W.ffPxOpenDialog === 'function' && Array.isArray(W.FF_FRAME_DESIGNS));
   chk('chooser is shown', shown('#modeChooser'));
+  chk('the Studio starts on an empty canvas', G('doc').layers.length === 0 && !D.querySelector('#layerList .layer'));
   chk('no mode yet', W.ffStudioMode === null && D.body.dataset.mode === '');
   chk('no mode-only section is shown', !D.querySelector('[data-only]') ||
     [].every.call(D.querySelectorAll('[data-only]'), function (el) { return W.getComputedStyle(el).display === 'none'; }));
@@ -75,7 +84,7 @@ async function testModes() {
   chk('image-only tools hidden', !shown('#btnAutoScreen') && !shown('#btnPickOpening'));
   chk('decorate tools shown in both modes', shown('[data-act="addImage"]'));
   var L = G('doc').layers;
-  chk('the demo was replaced by one generated frame', L.length === 2 &&
+  chk('one generated frame on a clean canvas', L.length === 2 &&
     L[0].type === 'frame' && L[1].type === 'overlay' && !!L[1].frameDesignId,
     L.map(function (l) { return l.type; }).join(','));
   chk('default is a white square', L[1].frameDesignId === 'white' && L[0].ratioId === '1-1');
@@ -199,7 +208,7 @@ async function testBuild() {
   var edge = built.png.getContext('2d').getImageData(Math.round(built.W / 2), 3, 1, 1).data;
   chk('the moulding is opaque in the PNG', edge[3] === 255, 'alpha ' + edge[3]);
 
-  fr.content = G('emptyContent')(W.demoArt());
+  fr.content = G('emptyContent')(solidPng());
   var withPhoto = await W.ffPxBuild({ quality: 1000 });
   var mid = withPhoto.png.getContext('2d').getImageData(Math.round(withPhoto.W / 2), Math.round(withPhoto.H / 2), 1, 1).data;
   chk('the preview photo is never baked into the overlay', mid[3] === 0, 'alpha ' + mid[3]);
@@ -285,7 +294,7 @@ async function testNewAndImage() {
   click('[data-choose="image"]');
   await sleep(50);
   chk('upload card shown', shown('#emptyState') && shown('#esAddOverlay'));
-  G('doc').layers.push({ id: 'ov1', type: 'overlay', name: 'Art', visible: true, locked: true, opacity: 1, src: W.DEMO_OVERLAY, x: 0, y: 0, w: 300, h: 200, rotation: 0 });
+  G('doc').layers.push({ id: 'ov1', type: 'overlay', name: 'Art', visible: true, locked: true, opacity: 1, src: solidPng(), x: 0, y: 0, w: 300, h: 200, rotation: 0 });
   W.sync();
   await sleep(50);
   chk('upload card goes once there is artwork', !shown('#emptyState'));

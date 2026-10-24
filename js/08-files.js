@@ -133,50 +133,10 @@ dropZone.addEventListener('drop', (ev) => {
   fr.readAsDataURL(f);
 });
 
-/* ---------------------------- demo scene ---------------------------- */
-function demoArt() {
-  const c = document.createElement('canvas');
-  c.width = 1200; c.height = 750;
-  const x = c.getContext('2d');
-  const g = x.createLinearGradient(0, 0, 1200, 750);
-  g.addColorStop(0, '#123a63'); g.addColorStop(.55, '#2783DE'); g.addColorStop(1, '#5EC8D8');
-  x.fillStyle = g; x.fillRect(0, 0, 1200, 750);
-  x.globalAlpha = .18; x.fillStyle = '#fff';
-  for (let i = 0; i < 26; i++) { x.beginPath(); x.arc(90 + i * 47, 120 + (i % 5) * 130, 60 + (i % 4) * 26, 0, 7); x.fill(); }
-  x.globalAlpha = 1;
-  x.fillStyle = '#fff';
-  x.font = '700 92px -apple-system,Segoe UI,Roboto,sans-serif';
-  x.textAlign = 'center';
-  x.fillText('YOUR DESIGN', 600, 370);
-  x.font = '500 40px -apple-system,Segoe UI,Roboto,sans-serif';
-  x.globalAlpha = .85;
-  x.fillText('drops right into the frame', 600, 440);
-  return c.toDataURL('image/jpeg', 0.86);
-}
-
+/* The Studio starts on an empty canvas: 22-modes.js shows the mode chooser
+   over it, and the first thing on the canvas is the creator's own frame. */
 function boot() {
-  const ov = window.DEMO_OVERLAY;
-  const S = window.DEMO_SCREEN || { w: 1200, h: 800, corners: [[172, 66], [1027, 66], [1026, 540], [174, 540]] };
-  if (!ov) { // lite build: start empty
-    doc = { canvas: { w: 1200, h: 800, bg: '#FFFFFF' }, layers: [] };
-    sizePill(); setTool('select'); fit(); refreshTpls(); sync();
-    setTimeout(() => toast('Choose Generate or From image to start'), 700);
-    return;
-  }
-  doc = {
-    canvas: { w: S.w, h: S.h, bg: '#FFFFFF' },
-    layers: [
-      { id: uid(), type: 'frame', name: 'Laptop Screen Frame', frameType: 'rect', visible: true, locked: false, opacity: 1,
-        points: S.corners.map(([x, y]) => ({ x, y })), content: emptyContent(demoArt()) },
-      { id: uid(), type: 'overlay', name: 'Laptop Mockup Overlay', visible: true, locked: true, opacity: 1,
-        src: ov, x: 0, y: 0, w: S.w, h: S.h, rotation: 0 }
-    ]
-  };
+  doc = { canvas: { w: 1200, h: 800, bg: '#FFFFFF' }, layers: [] };
   sizePill(); setTool('select'); fit(); refreshTpls(); sync();
-  // The mode chooser covers the demo, and choosing a mode replaces it, so
-  // only hint while the untouched demo is still what is on screen.
-  setTimeout(() => {
-    if (typeof ffIsBootDemo !== 'function' || ffIsBootDemo()) toast('Choose Generate or From image to start');
-  }, 700);
 }
 boot();

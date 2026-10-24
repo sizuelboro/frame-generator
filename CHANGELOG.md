@@ -47,6 +47,9 @@ the AI round trip, ratio presets and frame designs stay.
   area`: a bare opening with no artwork is what Pixopik's built-in rectangle
   already is. `ffAddRatioFrame` went with it.
 - **`Tools ▾` menu.** Its items are in the From image panel.
+- **The laptop demo at start-up.** The Studio opens on an empty canvas under
+  the mode chooser. The 400 KB laptop artwork is no longer loaded by the
+  Studio; it lives on as a test fixture (`tests/fixtures/demo-overlay.js`).
 - **Canva publishing.** `Publish to Canva`, `Library settings` and the
   folder picker, plus `frameforge-worker11/` (Cloudflare Worker + R2
   library) and `frameforge-canva-app11/` (Canva side-panel app).
