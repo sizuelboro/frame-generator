@@ -77,6 +77,7 @@ function render(target, opts) {
         c.save();
         c.translate(L.x + L.w / 2, L.y + L.h / 2);
         c.rotate(((L.rotation || 0) * Math.PI) / 180);
+        if (L.flipX || L.flipY) c.scale(L.flipX ? -1 : 1, L.flipY ? -1 : 1);
         c.drawImage(img, -L.w / 2, -L.h / 2, L.w, L.h);
         c.restore();
       }
@@ -84,6 +85,7 @@ function render(target, opts) {
       c.save();
       c.translate(L.x + L.w / 2, L.y + L.h / 2);
       c.rotate(((L.rotation || 0) * Math.PI) / 180);
+      if (L.flipX || L.flipY) c.scale(L.flipX ? -1 : 1, L.flipY ? -1 : 1);
       c.fillStyle = L.fill;
       if (L.shape === 'ellipse') {
         c.beginPath(); c.ellipse(0, 0, L.w / 2, L.h / 2, 0, 0, Math.PI * 2); c.fill();
@@ -100,7 +102,7 @@ function render(target, opts) {
       c.translate(L.x, L.y);
       c.rotate(((L.rotation || 0) * Math.PI) / 180);
       c.fillStyle = L.color;
-      c.font = `${L.weight || 600} ${L.size}px ${L.font || '-apple-system,Segoe UI,Roboto,sans-serif'}`;
+      c.font = `${L.italic ? 'italic ' : ''}${L.weight || 600} ${L.size}px ${L.font || '-apple-system,Segoe UI,Roboto,sans-serif'}`;
       c.textAlign = L.align || 'left';
       c.textBaseline = 'top';
       String(L.text).split('\n').forEach((line, i) => c.fillText(line, 0, i * L.size * 1.25));
@@ -164,7 +166,7 @@ function drawChrome(c) {
 }
 function textW(c, L) {
   c.save();
-  c.font = `${L.weight || 600} ${L.size}px ${L.font || 'sans-serif'}`;
+  c.font = `${L.italic ? 'italic ' : ''}${L.weight || 600} ${L.size}px ${L.font || '-apple-system,Segoe UI,Roboto,sans-serif'}`;
   const w = Math.max(...String(L.text).split('\n').map(s => c.measureText(s).width));
   c.restore();
   return w;

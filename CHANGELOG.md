@@ -44,6 +44,17 @@ the AI round trip, ratio presets and frame designs stay.
   folded under **More tools**; the toolbar is just the mode tabs, **More ▾**
   and **Export for Pixopik**. A selected opening shows **Try a photo** and
   **Delete**, with the rest under Advanced.
+- **A design editor.** `js/24-editor.js` lays the Studio out like a design
+  editor: an icon rail (Frames, Uploads, Text, Elements, Layers) with one
+  flyout panel; a context bar that follows the selection; eight resize
+  handles and a rotate handle on images, shapes and text, with smart guides
+  that snap to the canvas and other layers; undo / redo; duplicate, copy and
+  paste, layer order and lock from the bar, a right-click menu and
+  shortcuts; text edited in place on the canvas, with Google Fonts and font
+  combinations; shapes in Elements; every upload of the session in Uploads;
+  drag to reorder in Layers; a details drawer; a zoom dock; and layer names
+  that replace camera and AI file ids ("Image 2"). Images and shapes can be
+  flipped. The Pixopik preview is a card folded at the bottom left.
 - **Redesign in Pixopik's palette.** One design system in `index.html`
   (Pixopik's ink, paper and violet accent as CSS tokens) and one SVG icon set
   used across the toolbar, steps, menus and dialogs. The export step is

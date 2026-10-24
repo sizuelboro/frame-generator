@@ -70,11 +70,26 @@ decides which controls the left panel shows; switching later with the
 | **Generate** | Shape (1:1, 4:5, 3:4, 2:3, 9:16, portrait/landscape), Style grid, Border width | A moulding drawn for you. One click on a style draws the frame; changing any setting redraws the same frame. |
 | **From image** | Three steps: 1 Upload your frame, 2 Opening (found automatically), 3 Check and export | Your own artwork, such as a hand-drawn crayon frame. |
 
-The left panel is a list of numbered steps. A step opens only once the one
-before it is done, and shows a green tick when it is finished. Text, shapes,
-extra layers, the layer list and saved mockups are folded under **More
-tools**; project files, Trim canvas, bleed and the other exports are in the
-**More ▾** menu.
+The Frames panel is a list of numbered steps. A step opens only once the one
+before it is done, and shows a green tick when it is finished.
+
+## The editor
+
+The Studio is laid out like a design editor (`js/24-editor.js`):
+
+| Part | What it does |
+| --- | --- |
+| **Rail** (left) | Frames, Uploads, Text, Elements, Layers. One panel at a time; click the open one to close it. |
+| **Context bar** (above the canvas) | Follows the selection. Text: font, size, colour, bold, italic, alignment. Shape: fill, rectangle/ellipse, corner rounding. Image: replace, flip. Opening: try / adjust / remove a photo. Everything: transparency, position, lock, duplicate, delete, all details. |
+| **Canvas** | Eight resize handles and a rotate handle on images, shapes and text. Moving snaps to the canvas and to other layers, with pink guides (hold Alt to move freely). Corners keep an image's proportions (Shift frees them). Double-click text to edit it in place. Right-click for a menu. |
+| **Details drawer** (right) | Every property of the selection, or the canvas size and background. |
+| **Pixopik preview** (bottom left) | A live preview of the export, folded to one line until opened. |
+| **Zoom** (bottom right) | Slider, Fit, and Ctrl + wheel. |
+
+Shortcuts: Ctrl+Z / Ctrl+Shift+Z undo and redo, Ctrl+D duplicate, Ctrl+C /
+Ctrl+V copy and paste, Ctrl+] / Ctrl+[ forward and backward (with Shift: to
+front / back), Delete, arrow keys to nudge. Text uses Google Fonts loaded by
+`index.html`; the font list is `FF_FONTS`.
 
 ## Frame shapes and designs
 

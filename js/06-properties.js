@@ -8,17 +8,17 @@
    ========================================================================= */
 
 /* ---------------------------- inspector ----------------------------
-   The right panel answers three questions without a click:
+   The preview card (#pxFloat) and the details drawer (#right) answer
+   three questions without a click:
 
      How will it look?   a live preview drawn the way Pixopik draws an
                          empty frame (sky placeholder in the opening,
                          artwork on top, cropped like the export)
      Where am I?         a status list: mode, artwork, opening, shape
-     What now?           one sentence that follows the steps on the left
+     What now?           one sentence in the context bar (24-editor.js)
 
-   Canvas settings are folded away: Export for Pixopik crops for you, so
-   most creators never need them. Selecting a layer shows its own controls
-   with the preview kept on top. */
+   Selecting a layer fills the drawer with its own controls; with nothing
+   selected it holds the canvas settings. */
 
 /* One sentence saying what to do now, following the steps on the left. */
 function ffNextTip() {
@@ -40,22 +40,13 @@ const FF_LAYER_ICON = { frame: 'rect', image: 'image', overlay: 'layers', shadow
 /* ---- live preview ---- */
 /* Everything that ends up in the overlay PNG; openings are not artwork. */
 const FF_LIVE_ART = ['overlay', 'shadow', 'image', 'text', 'shape'];
-const FF_LIVE_W = 248, FF_LIVE_H = 192;   // CSS pixels inside .live
+const FF_LIVE_W = 200, FF_LIVE_H = 136;   // CSS pixels inside .live
 const _ffLive = { cv: null, t: 0, retries: 0 };
 
 function ffLiveOpenings() {
   return doc.layers
     .filter(l => l.type === 'frame' && l.visible !== false && l.points && l.points.length >= 3)
     .sort((a, b) => { const p = bbox(a.points), q = bbox(b.points); return q.w * q.h - p.w * p.h; });
-}
-
-function ffLiveHtml() {
-  return `
-    <div class="insp">
-      <h2>Preview in Pixopik</h2>
-      <div class="live" id="liveSlot"></div>
-      <div class="livecap"><i></i><span id="liveCap">The sky shows where the photo goes</span></div>
-    </div>`;
 }
 
 /* The canvas element is kept across re-renders of the panel, so a redraw
@@ -175,7 +166,7 @@ function ffLiveShape(aspect) {
 }
 
 /* ---- status ---- */
-function ffStatusHtml() {
+function ffStatusRows() {
   const mode = window.ffStudioMode;
   const overlays = doc.layers.filter(l => l.type === 'overlay' && l.visible !== false);
   const gen = overlays.find(l => l.frameDesignId);
@@ -190,18 +181,30 @@ function ffStatusHtml() {
     : openings.length > 1 ? openings.length + ' openings'
     : openings.length ? openings[0].points.length + ' points'
     : 'Not set';
-  const rows = [
+  return [
     ['Mode', mode === 'generate' ? 'Generate' : mode === 'image' ? 'From image' : 'Not chosen', mode ? 'on' : ''],
     ['Artwork', artText, gen || art ? 'ok' : ''],
     ['Opening', openText, running ? 'on' : openings.length > 1 ? 'warn' : openings.length ? 'ok' : ''],
     ['Aspect', '\u2014', '', 'stShape'],
     ['Export', openings.length ? 'Ready' : 'Needs an opening', openings.length ? 'ok' : '']
   ];
-  return `
-    <div class="insp">
-      <h2>Status</h2>
-      <ul class="status">${rows.map(r => `<li class="${r[2]}"><i class="dot"></i><span>${r[0]}</span><b${r[3] ? ` id="${r[3]}"` : ''} title="${esc(r[1])}">${esc(r[1])}</b></li>`).join('')}</ul>
-    </div>`;
+}
+function ffStatusHtml() {
+  return `<ul class="status">${ffStatusRows().map(r => `<li class="${r[2]}"><i class="dot"></i><span>${r[0]}</span><b${r[3] ? ` id="${r[3]}"` : ''} title="${esc(r[1])}">${esc(r[1])}</b></li>`).join('')}</ul>`;
+}
+
+/* The preview card is always on screen (index.html #pxFloat), so it is
+   refreshed on every sync, whatever is selected. */
+function ffStatusRefresh() {
+  const slot = $('#pxStatusSlot');
+  if (slot) slot.innerHTML = ffStatusHtml();
+  const ready = $('#pxReady');
+  if (ready) {
+    const ok = ffLiveOpenings().length > 0;
+    ready.textContent = ok ? 'Ready' : 'Not ready';
+    ready.className = 'pill' + (ok ? ' green' : '');
+  }
+  ffLiveMount();
 }
 
 function refreshProps() {
@@ -209,50 +212,38 @@ function refreshProps() {
   // More -> Shadow: only meaningful when a shadow layer exists (AI scene import)
   const shadowSetting = $('#btnShadowStrength');
   if (shadowSetting) shadowSetting.classList.toggle('hidden', !doc.layers.some(l => l.type === 'shadow'));
+  ffStatusRefresh();
   const L = layer(sel);
+  const title = $('#drawerTitle');
+  if (title) title.textContent = L ? (L.type === 'frame' ? 'Opening' : TYPE_LABEL[L.type].replace(/\s*\(.*\)/, '')) : 'Canvas';
   if (!L) {
     box.innerHTML = `
-      ${ffLiveHtml()}
-      ${ffStatusHtml()}
       <div class="insp">
-        <div class="nextcard">${ffIcon('info')}<div class="note" id="nextTip">${ffNextTip()}</div></div>
-      </div>
-      <details class="fold">
-        <summary>${ffIcon('settings')}Canvas settings</summary>
-        <div class="insp">
-          <div class="stack">
-            <div class="row">
-              <div class="field"><label for="cw">Width</label><input class="inp" type="number" id="cw" value="${doc.canvas.w}"></div>
-              <div class="field"><label for="ch">Height</label><input class="inp" type="number" id="ch" value="${doc.canvas.h}"></div>
-            </div>
-            <div class="field"><label for="cbg">Background</label><input type="color" id="cbg" value="${doc.canvas.bg === 'transparent' ? '#ffffff' : doc.canvas.bg}"></div>
-            <button class="btn sm" id="cbgT">Make background transparent</button>
-            <div class="note">Export for Pixopik crops to the artwork and its opening, so the canvas size never needs to match the frame.</div>
+        <div class="stack">
+          <div class="row">
+            <div class="field"><label for="cw">Width</label><input class="inp" type="number" id="cw" value="${doc.canvas.w}"></div>
+            <div class="field"><label for="ch">Height</label><input class="inp" type="number" id="ch" value="${doc.canvas.h}"></div>
           </div>
+          <div class="field"><label for="cbg">Background</label><input type="color" id="cbg" value="${doc.canvas.bg === 'transparent' ? '#ffffff' : doc.canvas.bg}"></div>
+          <button class="btn sm" id="cbgT">Make background transparent</button>
+          <div class="note">Export for Pixopik crops to the artwork and its opening, so the canvas size never needs to match the frame.</div>
         </div>
-      </details>`;
+      </div>`;
     $('#cw').onchange = (e) => { doc.canvas.w = clamp(+e.target.value || 1200, 50, 6000); sizePill(); sync(); };
     $('#ch').onchange = (e) => { doc.canvas.h = clamp(+e.target.value || 800, 50, 6000); sizePill(); sync(); };
     $('#cbg').oninput = (e) => { doc.canvas.bg = e.target.value; render(); };
-    $('#cbgT').onclick = () => { doc.canvas.bg = 'transparent'; render(); toast('Background is now transparent'); };
-    ffLiveMount();
+    $('#cbg').onchange = () => sync();
+    $('#cbgT').onclick = () => { doc.canvas.bg = 'transparent'; sync(); toast('Background is now transparent'); };
     return;
   }
 
-  const i = doc.layers.findIndex(l => l.id === L.id);
   let html = `
     <div class="sect">
       <div class="lhead"><div class="lic">${ffIcon(FF_LAYER_ICON[L.type] || 'layers')}</div><div><b>${esc(L.name)}</b><small>${TYPE_LABEL[L.type]}</small></div></div>
       <div class="stack">
         <div class="field"><label>Name</label><input class="inp" id="pname" value="${esc(L.name)}"></div>
         <div class="row">
-          <button class="btn sm" id="up" ${i === doc.layers.length - 1 ? 'disabled' : ''}>↑ Forward</button>
-          <button class="btn sm" id="down" ${i === 0 ? 'disabled' : ''}>↓ Backward</button>
-        </div>
-        <div class="row">
           <button class="btn sm" id="tvis">${L.visible ? 'Hide' : 'Show'}</button>
-          <button class="btn sm" id="tlock">${L.locked ? 'Unlock' : 'Lock'}</button>
-          <button class="btn sm danger" id="del">Delete</button>
         </div>
         <div class="field"><label>Opacity <span class="val" id="opv">${Math.round((L.opacity ?? 1) * 100)}%</span></label>
           <input type="range" id="op" min="0" max="100" value="${Math.round((L.opacity ?? 1) * 100)}"></div>
@@ -355,8 +346,8 @@ function refreshProps() {
       </div>
     </div>`;
   }
-  /* An opening gets the two things a creator wants up front, and the
-     preview; the layer and geometry controls are folded under Advanced. */
+  /* An opening gets the two things a creator wants up front, then the
+     layer and geometry controls. */
   if (L.type === 'frame') {
     const kind = L.publishMode === 'silhouette' ? 'Silhouette' : L.points.length === 4 ? '4 corner points' : L.points.length + ' points';
     html = `
@@ -367,15 +358,11 @@ function refreshProps() {
         <button class="btn sm danger" id="qDel">${ffIcon('trash')}Delete</button>
       </div>
     </div>
-    ${ffLiveHtml()}
-    <details class="fold"><summary>${ffIcon('settings')}Advanced</summary>${html}</details>`;
-  } else {
-    html = html.replace(/class="sect"/g, 'class="insp"');
+    ${html}`;
   }
-  box.innerHTML = html;
+  box.innerHTML = html.replace(/class="sect"/g, 'class="insp"');
   if ($('#qPhoto')) $('#qPhoto').onclick = () => setImageFor(L);
   if ($('#qDel')) $('#qDel').onclick = () => removeLayer(L.id);
-  ffLiveMount();
   bindProps(L);
 }
 

@@ -82,7 +82,7 @@ async function testModes() {
   chk('chooser is gone', !shown('#modeChooser'));
   chk('generate panel shown', shown('#genShapes') && shown('#genStyles') && shown('#genBorder'));
   chk('image-only tools hidden', !shown('#btnAutoScreen') && !shown('#btnPickOpening'));
-  chk('decorate tools shown in both modes', shown('[data-act="addImage"]'));
+  chk('decorating lives in its own panels (Uploads, Text, Elements)', !!$('.railbtn[data-panel="uploads"]') && !!$('[data-act="addImage"]') && !!$('[data-text="heading"]'));
   var L = G('doc').layers;
   chk('one generated frame on a clean canvas', L.length === 2 &&
     L[0].type === 'frame' && L[1].type === 'overlay' && !!L[1].frameDesignId,
@@ -408,12 +408,12 @@ async function testInspector() {
   chk('the opening shows Pixopik\'s sky placeholder', !!live && isSky(px(live, 0.5, 0.55)),
     live ? [].slice.call(px(live, 0.5, 0.55)).join(',') : '');
   chk('the moulding is drawn over it', !!live && px(live, 0.5, 0.01)[3] === 255);
-  chk('the status reads ready', /Ready/.test($('#right').textContent) && /White moulding/.test($('#right').textContent),
-    $('#right').textContent.replace(/\s+/g, ' ').slice(0, 200));
+  chk('the status reads ready', /Ready/.test($('#pxStatusSlot').textContent) && /White moulding/.test($('#pxStatusSlot').textContent) && $('#pxReady').textContent === 'Ready',
+    $('#pxStatusSlot').textContent.replace(/\s+/g, ' ').slice(0, 200));
   await until(function () { return /square/.test(($('#stShape') || {}).textContent || ''); }, 1000);
   chk('the aspect of the exported box is named', /1:1 square/.test(($('#stShape') || {}).textContent || ''),
     ($('#stShape') || {}).textContent);
-  chk('canvas settings are folded away', !!$('#cw') && !$('#cw').closest('details').open);
+  chk('canvas settings wait in the closed details drawer', !!$('#cw') && !D.body.classList.contains('drawer-open') && !shown('#cw'));
 
   var cvs = D.querySelector('#cv');
   var fr = G("doc.layers.find(function (l) { return l.type === 'frame'; })");
@@ -426,7 +426,7 @@ async function testInspector() {
 
   G("sel = doc.layers.find(function (l) { return l.type === 'frame'; }).id; sync()");
   await sleep(150);
-  chk('selecting the opening keeps the preview', !!$('#liveSlot') && $('#livePreview') === live && shown('#qPhoto'));
+  chk('selecting the opening keeps the preview, and the context bar offers a photo', !!$('#liveSlot') && $('#livePreview') === live && shown('#ctxPhoto'));
   G('sel = null; sync()');
 
   chk('there is no hand-added Shadow layer button any more', !D.querySelector('[data-act="addShadow"]'));
@@ -438,6 +438,86 @@ async function testInspector() {
   chk('no script errors in the inspector', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
 }
 
+async function testEditor() {
+  section('14. the editor works like a design editor');
+  click('#btnNew');
+  await sleep(50);
+  var ok = [].slice.call(D.querySelectorAll('button')).find(function (b) { return b.textContent === 'Start new'; });
+  if (ok) ok.click();
+  await sleep(50);
+  click('[data-choose="generate"]');
+  await sleep(80);
+
+  click('.railbtn[data-panel="text"]');
+  chk('the rail opens the Text panel', shown('[data-text="heading"]') && !shown('#genStyles'));
+  click('.railbtn[data-panel="text"]');
+  chk('clicking the open panel closes the flyout', D.body.classList.contains('flyout-closed'));
+  click('.railbtn[data-panel="frames"]');
+  chk('and the rail brings Frames back', shown('#genStyles') && !D.body.classList.contains('flyout-closed'));
+
+  var n0 = G('doc').layers.length;
+  G('ffAddShape(FF_SHAPES[0])');
+  var S = G('layer(sel)');
+  chk('a shape is added and selected', G('doc').layers.length === n0 + 1 && S && S.type === 'shape');
+  chk('the context bar follows the selection', shown('#ctxDelete') && /Position/.test($('#ctxTools').textContent));
+
+  var x0 = S.x, y0 = S.y;
+  var se = G('ffHandles(layer(sel))').filter(function (h) { return h.id === 'se'; })[0];
+  G('ffDragStart')(S, { x: se.x, y: se.y }, se);
+  G('ffDragMove')({ x: se.x + 40, y: se.y + 20 }, {});
+  G('ffDragEnd')();
+  chk('a corner handle resizes, the opposite corner stays put', S.w === 300 && S.h === 280 && S.x === x0 && S.y === y0,
+    [S.x, S.y, S.w, S.h].join(','));
+
+  var rot = G('ffHandles(layer(sel))').filter(function (h) { return h.id === 'rot'; })[0];
+  var cx = S.x + S.w / 2, cy = S.y + S.h / 2;
+  G('ffDragStart')(S, { x: rot.x, y: rot.y }, rot);
+  G('ffDragMove')({ x: cx + 200, y: cy + 1 }, {});
+  G('ffDragEnd')();
+  chk('the rotate handle turns it, snapping near right angles', S.rotation === -90, String(S.rotation));
+  S.rotation = 0;
+
+  var start = { x: S.x + 10, y: S.y + 10 };
+  var cw = G('doc').canvas.w;
+  var want = cw / 2 - (S.x + S.w / 2) + 3;      // lands 3 px off the canvas centre
+  G('ffDragStart')(S, start, null);
+  G('ffDragMove')({ x: start.x + want, y: start.y }, {});
+  var guided = G('_ffGuides').length > 0;
+  G('ffDragEnd')();
+  chk('moving snaps to the canvas centre and shows a guide', S.x + S.w / 2 === cw / 2 && guided, String(S.x + S.w / 2));
+
+  G('ffHistCommit()');
+  var len = G('doc').layers.length;
+  G('ffDuplicate(layer(sel))');
+  G('ffHistCommit()');
+  chk('duplicate adds a copy on top of the original', G('doc').layers.length === len + 1 && /copy$/.test(G('layer(sel)').name));
+  G('ffUndo()');
+  chk('undo takes it back', G('doc').layers.length === len);
+  G('ffRedo()');
+  chk('redo puts it back', G('doc').layers.length === len + 1);
+  chk('undo and redo buttons follow the history', $('#btnUndo').disabled === false && $('#btnRedo').disabled === true);
+
+  G('ffAddText(FF_TEXT_PRESETS.heading, false)');
+  var T = G('layer(sel)');
+  chk('a heading is added, centred on the canvas', T.type === 'text' && T.align === 'center' && T.x === Math.round(cw / 2));
+  chk('the context bar shows its font and size', /Inter/.test($('#ctxTools').textContent) && $('#ctxSize').value === '76');
+  var tb = G('ffBox(layer(sel))');
+  chk('centred text is hit across its whole width', G('hitLayer')({ x: T.x + tb.x + 3, y: T.y + 5 }) === T);
+  var nw = G('ffHandles(layer(sel))').filter(function (h) { return h.id === 'se'; })[0];
+  var size0 = T.size;
+  G('ffDragStart')(T, { x: nw.x, y: nw.y }, nw);
+  G('ffDragMove')({ x: nw.x + tb.w * 0.5, y: nw.y + tb.h * 0.5 }, {});
+  G('ffDragEnd')();
+  chk('a text corner scales the font size', Math.abs(T.size - size0 * 1.5) <= 1, size0 + ' -> ' + T.size);
+
+  chk('camera and AI file ids become readable layer names', /^Image \d+$/.test(G("ffNiceName('c777b38a-bb17-4e4d-9907-3151e62a4f38.png', 'Image')")) &&
+    G("ffNiceName('crayon-hearts.png', 'Image')") === 'crayon-hearts');
+
+  G('layer(sel).locked = true; sync()');
+  chk('a locked layer shows no handles to grab', G('ffHitHandle(layer(sel), ' + JSON.stringify({ x: nw.x, y: nw.y }) + ')') === null);
+  chk('no script errors in the editor', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
+}
+
 async function run() {
   try {
     await testModes();
@@ -447,6 +527,7 @@ async function run() {
     await testNewAndImage();
     await testSteps();
     await testInspector();
+    await testEditor();
   } catch (error) {
     chk('suite completed without throwing', false, error && (error.stack || error.message));
   }

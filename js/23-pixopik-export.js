@@ -372,6 +372,8 @@ function ffPxDefaults() {
     label = ov ? String(ov.name || '').replace(/\s*(overlay|mockup)\s*$/i, '').replace(/[-_]+/g, ' ').trim() : '';
     label = label ? label.charAt(0).toUpperCase() + label.slice(1) : 'My frame';
   }
+  // a design the creator has named is exported under that name
+  if (doc.name && doc.name !== 'Untitled frame') label = doc.name;
   let group = gen ? 'photo' : 'wedding';
   try { group = localStorage.getItem('frameforge.pixopik.group') || group; } catch (e) { /* storage blocked */ }
   if (!FF_PIXOPIK_GROUPS.some(g => g[0] === group)) group = 'wedding';

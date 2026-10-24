@@ -118,14 +118,14 @@ dropZone.addEventListener('drop', (ev) => {
       // First image on an empty canvas is the mockup itself.
       loadMeta(src).then(m => {
         const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
-        addLayerTop({ id: uid(), type: 'overlay', name: f.name.replace(/\.[^.]+$/, '') || 'Mockup overlay', visible: true, locked: true, opacity: 1,
+        addLayerTop({ id: uid(), type: 'overlay', name: ffNiceName(f.name, 'Frame image'), visible: true, locked: true, opacity: 1,
           src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
         toast('Frame image added · now press Auto-detect opening');
       });
     } else {
       loadMeta(src).then(m => {
         const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h, 1);
-        addLayerTop({ id: uid(), type: 'image', name: 'Image', visible: true, locked: false, opacity: 1,
+        addLayerTop({ id: uid(), type: 'image', name: ffNiceName(f.name, 'Image'), visible: true, locked: false, opacity: 1,
           src, x: p.x - (m.w * s) / 2, y: p.y - (m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
       });
     }

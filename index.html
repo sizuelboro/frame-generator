@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>FrameForge — Frame studio for Pixopik</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Fonts offered for text layers (FF_FONTS in 24-editor.js). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Bebas+Neue&family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Creepster&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Inter:wght@400;600;700;800&family=Lora:wght@400;700&family=Merriweather:wght@400;700&family=Montserrat:wght@400;600;800&family=Oswald:wght@400;600&family=Pacifico&family=Playfair+Display:wght@400;700&family=Poppins:wght@400;600;800&display=swap">
 <style>
 /* =========================================================================
    Design system
@@ -414,15 +418,180 @@ body[data-mode="image"] [data-only~="image"]{display:block}
 .pxacts{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
 .pxacts .grow{flex:1 1 auto;font-size:12px;color:var(--ink2)}
 
+/* =========================================================================
+   Editor shell (24-editor.js)
+   -------------------------------------------------------------------------
+   Laid out like a design editor: an icon rail opens one flyout panel at a
+   time, a contextual bar above the canvas follows the selection, details
+   slide in from the right, and zoom lives in a dock at the bottom right.
+   ========================================================================= */
+.topbar{gap:10px}
+.topbar .tbsep{width:1px;height:22px;background:var(--line);margin:0 2px}
+.docname{min-width:120px;max-width:280px;height:32px;padding:0 10px;border:1px solid transparent;border-radius:var(--r-sm);
+  background:transparent;font-size:13.5px;font-weight:600;color:var(--ink);text-overflow:ellipsis}
+.docname:hover{border-color:var(--line)}
+.docname:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:#fff}
+.iconbtn.tb{width:32px;height:32px;flex-basis:32px;border-radius:8px;color:var(--ink2)}
+.iconbtn.tb:hover{background:var(--soft2);color:var(--ink)}
+.iconbtn.tb:disabled{opacity:.35;background:none;cursor:default}
+
+/* ---- rail + flyout ---- */
+.rail{width:72px;flex:0 0 72px;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0}
+.railbtn{width:62px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0 7px;border-radius:10px;
+  font-size:10.5px;font-weight:600;color:var(--ink2);transition:background .12s,color .12s}
+.railbtn .ic{width:21px;height:21px;flex-basis:21px}
+.railbtn:hover{background:var(--soft);color:var(--ink)}
+.railbtn[aria-selected="true"]{color:var(--accent)}
+.railbtn[aria-selected="true"] .ic{background:var(--accent-soft);border-radius:8px;padding:5px;width:34px;height:34px;flex-basis:34px;margin:-6px 0 -3px}
+.railbtn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.flyout{width:320px;flex:0 0 320px;overflow:hidden;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;position:relative}
+body.flyout-closed .flyout{display:none}
+.fpanel{display:none;flex-direction:column;min-height:0;flex:1 1 auto;overflow-y:auto;scrollbar-width:thin}
+.fpanel.on{display:flex}
+.fhead{display:flex;align-items:center;gap:8px;padding:16px 16px 10px}
+.fhead h2{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.fhead .iconbtn{margin-left:auto}
+.fbody{padding:4px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.fsub{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);margin:8px 0 2px}
+.flyout .modeswitch{margin:0 16px 6px;display:flex}
+.flyout .modetab{flex:1 1 0;justify-content:center}
+.flyout .steps{flex:1 0 auto}
+
+/* text panel */
+.tpreset{display:block;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);transition:border-color .12s,background .12s}
+.tpreset:hover{border-color:var(--line2);background:var(--soft)}
+.tpreset.h{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.tpreset.s{font-size:17px;font-weight:600}
+.tpreset.b{font-size:13px}
+.combos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.combo{height:88px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;padding:6px;text-align:center;line-height:1.05;overflow:hidden;transition:transform .12s,border-color .12s}
+.combo:hover{border-color:var(--accent);transform:translateY(-1px)}
+
+/* elements + uploads grids */
+.egrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.eitem{aspect-ratio:1;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;background:var(--soft);transition:border-color .12s,background .12s}
+.eitem:hover{border-color:var(--accent);background:var(--accent-soft)}
+.eitem i{display:block;background:var(--accent)}
+.swatches{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.sw{aspect-ratio:1;border-radius:50%;border:1px solid rgba(35,35,52,.12);cursor:pointer;transition:transform .1s}
+.sw:hover{transform:scale(1.12)}
+.sw.on{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--accent)}
+.ugrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.uitem{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--line);
+  background:repeating-conic-gradient(#efedf3 0 25%,#fff 0 50%) 0 0/12px 12px}
+.uitem img{width:100%;height:100%;object-fit:contain;display:block}
+.uitem span{position:absolute;left:0;right:0;bottom:0;padding:4px 6px;font-size:10.5px;font-weight:600;color:#fff;background:linear-gradient(transparent,rgba(35,35,52,.75));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .12s}
+.uitem:hover{border-color:var(--accent)}
+.uitem:hover span{opacity:1}
+.dropzone{border:1.5px dashed var(--line2);border-radius:12px;padding:16px;text-align:center;font-size:12px;color:var(--ink3)}
+
+/* layers panel: drag to reorder */
+.layer[draggable="true"]{cursor:grab}
+.layer.dragging{opacity:.4}
+.layer.drop-above{box-shadow:0 -2px 0 var(--accent)}
+.layer.drop-below{box-shadow:0 2px 0 var(--accent)}
+
+/* ---- stage ---- */
+.stage{min-width:0}
+.ctxbar{display:flex;align-items:center;gap:4px;height:48px;padding:0 10px;flex:0 0 auto;background:var(--card);border-bottom:1px solid var(--line);
+  font-size:12.5px;color:var(--ink2);overflow-x:auto;scrollbar-width:none}
+.ctxbar::-webkit-scrollbar{display:none}
+.ctxtools{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.ctxtools:empty{display:none}
+.ctxidle{display:flex;align-items:center;gap:8px;min-width:0;flex:1 1 auto;padding-left:6px}
+.ctxidle .note{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nextTip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;color:var(--ink2)}
+#nextTip b{color:var(--ink);font-weight:650}
+.toolmsg{display:none;align-items:center;gap:8px;min-width:0}
+body.tool-active .toolmsg{display:flex}
+body.tool-active #nextTip{display:none}
+.cbtn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:8px;font-size:13px;font-weight:550;color:var(--ink);white-space:nowrap;transition:background .1s}
+.cbtn:hover{background:var(--soft2)}
+.cbtn.on{background:var(--accent-soft);color:var(--accent-hover)}
+.cbtn.icon{width:34px;padding:0;justify-content:center}
+.cbtn.danger:hover{background:var(--red-soft);color:var(--red)}
+.cbtn.primary{background:var(--accent);color:#fff}
+.cbtn.primary:hover{background:var(--accent-hover)}
+.cbtn .ic{color:currentColor}
+.cbtn b{font-weight:800}
+.cbtn i.swatchdot{width:20px;height:20px;border-radius:50%;border:1px solid rgba(35,35,52,.18);display:block;font-style:normal}
+.cbtn i.textA{font-style:normal;font-weight:800;font-size:15px;line-height:1;border-bottom:3px solid currentColor;padding:0 2px}
+.csep{width:1px;height:22px;background:var(--line);margin:0 4px;flex:0 0 1px}
+.cfont{min-width:150px;justify-content:space-between;border:1px solid var(--line)}
+.csize{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;height:34px}
+.csize button{width:28px;height:32px;display:grid;place-items:center;color:var(--ink2);border-radius:7px}
+.csize button:hover{background:var(--soft2);color:var(--ink)}
+.csize input{width:44px;height:32px;border:none;text-align:center;font-size:13px;font-weight:600;background:transparent;-moz-appearance:textfield}
+.csize input::-webkit-inner-spin-button{display:none}
+.csize input:focus{outline:none}
+.clabel{font-size:12px;color:var(--ink3);margin:0 4px 0 6px;white-space:nowrap}
+
+/* popovers from the context bar */
+.cpop{position:fixed;z-index:800;min-width:220px;max-width:320px;max-height:min(460px,70vh);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-2);padding:12px;animation:dlgpop .12s ease-out}
+.cpop h4{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);margin:2px 0 8px}
+.cpop .prow{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.cpop .prow input[type=range]{flex:1 1 auto}
+.cpop .plist{display:flex;flex-direction:column;gap:1px}
+.cpop .plist button{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;font-size:13px;text-align:left}
+.cpop .plist button:hover{background:var(--soft)}
+.cpop .plist button.on{background:var(--accent-soft);color:var(--accent-hover)}
+.cpop .plist button .k{margin-left:auto;font-size:11px;color:var(--ink3)}
+.cpop .fontlist button{font-size:16px;padding:8px 10px}
+.cpop .inp.num{width:64px;text-align:center}
+
+/* context menu */
+.cmenu{position:fixed;z-index:900;min-width:210px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--sh-2);padding:5px;animation:dlgpop .1s ease-out}
+.cmenu button{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-radius:6px;font-size:13px;text-align:left;color:var(--ink)}
+.cmenu button:hover{background:var(--soft)}
+.cmenu button .ic{color:var(--ink2)}
+.cmenu button .k{margin-left:auto;font-size:11px;color:var(--ink3)}
+.cmenu button.danger{color:var(--red)}
+.cmenu button.danger .ic{color:var(--red)}
+.cmenu hr{border:none;border-top:1px solid var(--line);margin:4px 2px}
+
+/* canvas area */
+.canvaswrap{padding:40px 40px 72px}
+.textedit{position:absolute;z-index:4;margin:0;padding:0;border:none;outline:1.5px solid var(--accent);outline-offset:3px;background:transparent;resize:none;overflow:hidden;white-space:pre;line-height:1.25;border-radius:2px}
+
+/* zoom dock + Pixopik preview card float over the stage */
+.zoomdock{position:absolute;right:16px;bottom:14px;z-index:7;display:flex;align-items:center;gap:4px;padding:4px 6px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-2)}
+.zoomdock .btn{border-color:transparent;min-height:28px;padding:0 8px}
+.zoomdock .btn:hover{background:var(--soft2)}
+.zoomdock input[type=range]{width:110px;min-height:20px}
+.zoomdock .val{min-width:42px;text-align:center;font-size:12px}
+.pxfloat{position:absolute;left:16px;bottom:14px;z-index:7;width:236px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh-2);overflow:hidden}
+.pxfloat>header{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;font-size:12.5px;font-weight:650;color:var(--ink);text-align:left}
+.pxfloat>header .ic{color:var(--ink3);transition:transform .15s;margin-left:2px}
+.pxfloat.closed>header .ic.chev{transform:rotate(180deg)}
+.pxfloat .pxbody{padding:0 12px 12px}
+.pxfloat.closed .pxbody{display:none}
+.pxfloat .live{height:150px}
+.pxfloat .livecap{margin-top:6px}
+.pxfloat .livecap span{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pxfloat .livecap .link{font-size:11.5px;flex:0 0 auto}
+.pxfloat:not(.more) #pxStatusSlot{display:none}
+.pxfloat #pxStatusSlot{margin-top:6px;border-top:1px solid var(--line);padding-top:4px}
+.ctxbar.has-sel #nextTip{display:none}
+.pxfloat .status li{padding:4px 0;font-size:12px}
+#pxReady{margin-left:auto}
+
+/* details drawer */
+.drawer{position:absolute;top:48px;right:0;bottom:0;z-index:8;width:320px;background:var(--card);border-left:1px solid var(--line);
+  box-shadow:-12px 0 30px -18px rgba(35,35,52,.35);display:none;flex-direction:column}
+body.drawer-open .drawer{display:flex}
+.drawer>header{display:flex;align-items:center;gap:8px;padding:12px 12px 12px 16px;border-bottom:1px solid var(--line)}
+.drawer>header b{font-size:14px;font-weight:700}
+.drawer>header .iconbtn{margin-left:auto}
+.drawer #right{flex:1 1 auto;overflow-y:auto;scrollbar-width:thin}
+
 @media (max-width:720px){.pxgrid{grid-template-columns:1fr}.cgrid{grid-template-columns:1fr}.pxprev{width:100%}}
 @media (max-width:1100px){
-  body{overflow:auto}
-  .app{height:auto;min-height:100vh}
-  .body{flex-direction:column}
-  .panel.left,.panel.right{width:100%;flex-basis:auto;border:none;border-bottom:1px solid var(--line);overflow:visible}
-  #stepExport{position:static}
-  .stage{min-height:62vh}
+  .flyout{position:absolute;left:72px;top:0;bottom:0;z-index:20;box-shadow:var(--sh-2)}
+  .body{position:relative}
+  .pxfloat{display:none}
   .brand span{display:none}
+  .docname{max-width:160px}
 }
 </style>
 </head>
@@ -468,6 +637,32 @@ body[data-mode="image"] [data-only~="image"]{display:block}
     <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M6 4l12 7.5-5.2 1.3L10.2 18z"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5L11 13"/><path d="M17.5 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5h4"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5H14a5.5 5.5 0 0 1 0 11h-3"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5H10a5.5 5.5 0 0 0 0 11h3"/></symbol>
+    <symbol id="i-frames" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><rect x="7.5" y="7.5" width="9" height="9" rx="4.5"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18.5a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.6A3.8 3.8 0 0 1 17.5 18.5z"/><path d="M12 16v-5M9.8 13.2L12 11l2.2 2.2"/></symbol>
+    <symbol id="i-elements" viewBox="0 0 24 24"><circle cx="7.5" cy="7.5" r="3.5"/><path d="M16.5 4l4 7h-8z"/><rect x="4" y="13.5" width="7" height="7" rx="1.2"/><path d="M16.5 13.5l1.2 2.5 2.8.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.8-.4z"/></symbol>
+    <symbol id="i-fliph" viewBox="0 0 24 24"><path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 6L3.5 18H9zM15 6l5.5 12H15z"/></symbol>
+    <symbol id="i-flipv" viewBox="0 0 24 24"><path d="M3 12h18" stroke-dasharray="2 2"/><path d="M6 9L18 3.5V9zM6 15l12 5.5V15z"/></symbol>
+    <symbol id="i-opacity" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M12 3.5a8.5 8.5 0 0 1 0 17" fill="currentColor" fill-opacity=".25"/></symbol>
+    <symbol id="i-position" viewBox="0 0 24 24"><rect x="3.5" y="8.5" width="10" height="10" rx="1.5"/><path d="M8.5 5.5V5a1.5 1.5 0 0 1 1.5-1.5h8.5A1.5 1.5 0 0 1 20 5v8.5a1.5 1.5 0 0 1-1.5 1.5H17"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 7.6-1.8"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></symbol>
+    <symbol id="i-paste" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="15.5" rx="2"/><path d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-front" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="1.5" fill="currentColor" fill-opacity=".2"/><path d="M4 15V5.5A1.5 1.5 0 0 1 5.5 4H15"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><rect x="4" y="4" width="12" height="12" rx="1.5" fill="currentColor" fill-opacity=".2"/><path d="M20 9v9.5a1.5 1.5 0 0 1-1.5 1.5H9"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6.5 10.5L12 5l5.5 5.5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6.5 13.5L12 19l5.5-5.5"/></symbol>
+    <symbol id="i-bold" viewBox="0 0 24 24"><path d="M7 4.5h6a3.75 3.75 0 0 1 0 7.5H7zM7 12h7a4 4 0 0 1 0 8H7z" stroke-width="2.2"/></symbol>
+    <symbol id="i-italic" viewBox="0 0 24 24"><path d="M10 4.5h8M6 19.5h8M14.5 4.5l-5 15"/></symbol>
+    <symbol id="i-alignl" viewBox="0 0 24 24"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></symbol>
+    <symbol id="i-alignc" viewBox="0 0 24 24"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></symbol>
+    <symbol id="i-alignr" viewBox="0 0 24 24"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-radius" viewBox="0 0 24 24"><path d="M4 20V11a7 7 0 0 1 7-7h9"/></symbol>
+    <symbol id="i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.6"/></symbol>
   </defs>
 </svg>
 
@@ -482,168 +677,209 @@ body[data-mode="image"] [data-only~="image"]{display:block}
       </div>
     </div>
 
-    <div class="sep"></div>
+    <div class="tbsep"></div>
 
-    <!-- Two ways to make a frame. Everything mode-specific lives in the left
-         panel as numbered steps, so the toolbar stays almost empty. -->
-    <div class="modeswitch" role="tablist" aria-label="How to make the frame">
-      <button class="modetab" role="tab" data-mode-tab="generate" aria-selected="false"><svg class="ic"><use href="#i-generate"/></svg>Generate</button>
-      <button class="modetab" role="tab" data-mode-tab="image" aria-selected="false"><svg class="ic"><use href="#i-image"/></svg>From image</button>
+    <div class="menuwrap">
+      <button class="btn ghost" id="btnFileMenu" aria-haspopup="menu" aria-expanded="false">File <svg class="ic caret"><use href="#i-chev"/></svg></button>
+      <div class="menu left" id="menuFile" role="menu">
+        <h3>Project</h3>
+        <button class="btn" id="btnNew"><svg class="ic"><use href="#i-file"/></svg>New frame</button>
+        <button class="btn" id="btnLoadJson"><svg class="ic"><use href="#i-folder"/></svg>Open project (.json)</button>
+        <button class="btn" id="btnSaveJson"><svg class="ic"><use href="#i-save"/></svg>Save project (.json)</button>
+        <button class="btn" id="btnSaveTpl" title="Keep this mockup in the browser with empty frames, ready for any new artwork"><svg class="ic"><use href="#i-bookmark"/></svg>Save as reusable mockup</button>
+        <h3>Canvas <span class="pill" id="sizePill" style="margin-left:auto;letter-spacing:0">1200 &#215; 800</span></h3>
+        <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible artwork and its openings. Export for Pixopik does this for you."><svg class="ic"><use href="#i-crop"/></svg>Trim canvas</button>
+        <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
+        <button class="setting hidden" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
+        <h3>Other exports</h3>
+        <button class="btn" id="btnExport"><svg class="ic"><use href="#i-image"/></svg>Export PNG</button>
+        <button class="btn" id="btnExportOverlay"><svg class="ic"><use href="#i-export"/></svg>Export overlay PNG + coordinates</button>
+        <button class="btn" id="btnExportPsd" title="Layered PSD with the opening written as a smart object: the buyer double-clicks one layer and drops their artwork in"><svg class="ic"><use href="#i-psd"/></svg>Photoshop PSD (.psd)</button>
+        <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt"><svg class="ic"><use href="#i-sparkle"/></svg>Export for AI</button>
+        <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area"><svg class="ic"><use href="#i-upload"/></svg>Import AI scene</button>
+      </div>
     </div>
+
+    <button class="iconbtn tb" id="btnUndo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="ic"><use href="#i-undo"/></svg></button>
+    <button class="iconbtn tb" id="btnRedo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled><svg class="ic"><use href="#i-redo"/></svg></button>
+
+    <div class="tbsep"></div>
+    <input class="docname" id="docName" value="Untitled frame" aria-label="Design name" spellcheck="false" maxlength="40">
 
     <div class="spacer"></div>
 
-    <!-- Everything most creators never need, in one menu -->
-    <div class="grp">
-      <div class="menuwrap">
-        <button class="btn ghost" id="btnFileMenu" aria-haspopup="menu" aria-expanded="false"><svg class="ic"><use href="#i-more"/></svg>More</button>
-        <div class="menu" id="menuFile" role="menu">
-          <h3>Project</h3>
-          <button class="btn" id="btnNew"><svg class="ic"><use href="#i-file"/></svg>New frame</button>
-          <button class="btn" id="btnLoadJson"><svg class="ic"><use href="#i-folder"/></svg>Open project (.json)</button>
-          <button class="btn" id="btnSaveJson"><svg class="ic"><use href="#i-save"/></svg>Save project (.json)</button>
-          <button class="btn" id="btnSaveTpl" title="Keep this mockup in the browser with empty frames, ready for any new artwork"><svg class="ic"><use href="#i-bookmark"/></svg>Save as reusable mockup</button>
-          <h3>Canvas <span class="pill" id="sizePill" style="margin-left:auto;letter-spacing:0">1200 &#215; 800</span></h3>
-          <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible artwork and its openings. Export for Pixopik does this for you."><svg class="ic"><use href="#i-crop"/></svg>Trim canvas</button>
-          <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
-          <button class="setting hidden" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
-          <h3>Other exports</h3>
-          <button class="btn" id="btnExport"><svg class="ic"><use href="#i-image"/></svg>Export PNG</button>
-          <button class="btn" id="btnExportOverlay"><svg class="ic"><use href="#i-export"/></svg>Export overlay PNG + coordinates</button>
-          <button class="btn" id="btnExportPsd" title="Layered PSD with the opening written as a smart object: the buyer double-clicks one layer and drops their artwork in"><svg class="ic"><use href="#i-psd"/></svg>Photoshop PSD (.psd)</button>
-          <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt"><svg class="ic"><use href="#i-sparkle"/></svg>Export for AI</button>
-          <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area"><svg class="ic"><use href="#i-upload"/></svg>Import AI scene</button>
-        </div>
-      </div>
-      <button class="btn primary" id="btnExportPixopik" title="One overlay PNG plus a ready-to-paste Pixopik frame entry"><svg class="ic"><use href="#i-export"/></svg>Export for Pixopik</button>
-    </div>
+    <button class="btn primary" id="btnExportPixopik" title="One overlay PNG plus a ready-to-paste Pixopik frame entry"><svg class="ic"><use href="#i-export"/></svg>Export for Pixopik</button>
   </header>
 
   <div class="body">
 
-    <!-- LEFT -->
-    <aside class="panel left">
-      <div class="steps">
-        <!-- Before a mode is picked the stage asks; the panel just points there -->
-        <div class="pickfirst">
-          <div class="eic"><svg class="ic"><use href="#i-arrow"/></svg></div>
-          <b>Choose how to start</b>
-          <span>Pick Generate or From image on the canvas. The steps for that way appear here.</span>
-        </div>
-        <!-- Generate: three choices, then export -->
-        <div class="step" data-only="generate" data-step="on">
-          <span class="num">1</span>
-          <h2>Shape
-            <button class="btn sm" id="genOrient" title="Portrait or landscape">Portrait</button>
-          </h2>
-          <div class="chips" id="genShapes" role="radiogroup" aria-label="Opening shape"></div>
-        </div>
-        <div class="step" data-only="generate" data-step="on">
-          <span class="num">2</span>
-          <h2>Style</h2>
-          <div class="styles" id="genStyles" role="radiogroup" aria-label="Frame style"></div>
-        </div>
-        <div class="step" data-only="generate" data-step="on">
-          <span class="num">3</span>
-          <h2>Border width <span class="val" id="genBorderVal">7.5%</span></h2>
-          <div class="rangewrap">
-            <svg class="ic"><use href="#i-minus"/></svg>
-            <input type="range" id="genBorder" min="2" max="16" step="0.1" value="7.5" aria-label="Border width, percent of the opening">
-            <svg class="ic"><use href="#i-plus"/></svg>
-          </div>
-        </div>
+    <!-- Rail: one icon per panel. Clicking the open one closes the flyout. -->
+    <nav class="rail" role="tablist" aria-label="Panels">
+      <button class="railbtn" data-panel="frames" role="tab" aria-selected="true"><svg class="ic"><use href="#i-frames"/></svg><span>Frames</span></button>
+      <button class="railbtn" data-panel="uploads" role="tab" aria-selected="false"><svg class="ic"><use href="#i-cloud"/></svg><span>Uploads</span></button>
+      <button class="railbtn" data-panel="text" role="tab" aria-selected="false"><svg class="ic"><use href="#i-text"/></svg><span>Text</span></button>
+      <button class="railbtn" data-panel="elements" role="tab" aria-selected="false"><svg class="ic"><use href="#i-elements"/></svg><span>Elements</span></button>
+      <button class="railbtn" data-panel="layers" role="tab" aria-selected="false"><svg class="ic"><use href="#i-layers"/></svg><span>Layers</span></button>
+    </nav>
 
-        <!-- From image: each step opens once the one before it is done -->
-        <div class="step" data-only="image" id="stepUpload">
-          <span class="num">1</span>
-          <h2>Upload your frame</h2>
-          <div class="todo">
-            <button class="tool primary big" id="btnUploadFrame"><svg class="ic"><use href="#i-upload"/></svg>Upload frame PNG</button>
-            <div class="note">or drop it on the canvas. Best with a transparent opening.</div>
-          </div>
-          <div class="done">
-            <div class="doneline"><span id="uploadName">Frame image added</span></div>
-            <button class="link" id="btnReplaceFrame"><svg class="ic"><use href="#i-refresh"/></svg>Use a different image</button>
-          </div>
-        </div>
+    <aside class="flyout" id="flyout">
 
-        <div class="step" data-only="image" id="stepOpening">
-          <span class="num">2</span>
-          <h2>Opening</h2>
-          <div class="wait note">Upload your frame first.</div>
-          <div class="todo">
-            <div class="note" id="openingStatus">Finding the opening&#8230;</div>
-            <div class="stack">
-              <button class="tool primary" id="btnPickOpening" title="Click inside the opening of your image"><svg class="ic"><use href="#i-pick"/></svg>Click inside the opening</button>
-              <button class="tool" id="btnAutoScreen"><svg class="ic"><use href="#i-refresh"/></svg>Try finding it again</button>
-              <button class="tool" id="btnRemoveBg" title="For a PNG whose opening is white instead of transparent"><svg class="ic"><use href="#i-erase"/></svg>Opening is white? Make it transparent</button>
-              <details class="drawit">
-                <summary>Draw it myself</summary>
-                <div class="row" style="margin-top:7px">
-                  <button class="tool" data-tool="frameRect" title="Drag a rectangle (R)"><svg class="ic"><use href="#i-rect"/></svg>Rectangle</button>
-                  <button class="tool" data-tool="framePersp" title="Drag, then move the 4 corners (P)"><svg class="ic"><use href="#i-quad"/></svg>4 corners</button>
-                </div>
-              </details>
+      <!-- FRAMES: the two ways to make a frame, as numbered steps -->
+      <section class="fpanel on" data-panel="frames">
+        <div class="fhead"><h2>Frames</h2></div>
+        <div class="modeswitch" role="tablist" aria-label="How to make the frame">
+          <button class="modetab" role="tab" data-mode-tab="generate" aria-selected="false"><svg class="ic"><use href="#i-generate"/></svg>Generate</button>
+          <button class="modetab" role="tab" data-mode-tab="image" aria-selected="false"><svg class="ic"><use href="#i-image"/></svg>From image</button>
+        </div>
+        <div class="steps">
+          <div class="pickfirst">
+            <div class="eic"><svg class="ic"><use href="#i-arrow"/></svg></div>
+            <b>Choose how to start</b>
+            <span>Pick Generate or From image above or on the canvas. The steps for that way appear here.</span>
+          </div>
+
+          <div class="step" data-only="generate" data-step="on">
+            <span class="num">1</span>
+            <h2>Shape
+              <button class="btn sm" id="genOrient" title="Portrait or landscape">Portrait</button>
+            </h2>
+            <div class="chips" id="genShapes" role="radiogroup" aria-label="Opening shape"></div>
+          </div>
+          <div class="step" data-only="generate" data-step="on">
+            <span class="num">2</span>
+            <h2>Style</h2>
+            <div class="styles" id="genStyles" role="radiogroup" aria-label="Frame style"></div>
+          </div>
+          <div class="step" data-only="generate" data-step="on">
+            <span class="num">3</span>
+            <h2>Border width <span class="val" id="genBorderVal">7.5%</span></h2>
+            <div class="rangewrap">
+              <svg class="ic"><use href="#i-minus"/></svg>
+              <input type="range" id="genBorder" min="2" max="16" step="0.1" value="7.5" aria-label="Border width, percent of the opening">
+              <svg class="ic"><use href="#i-plus"/></svg>
             </div>
           </div>
-          <div class="done">
-            <div class="doneline"><span id="openingDone">Opening found</span></div>
-            <div class="note">Not quite right? Drag the round corner points on the canvas.</div>
-            <button class="link" id="btnRedoOpening"><svg class="ic"><use href="#i-pick"/></svg>Wrong opening? Pick it by hand</button>
-          </div>
-        </div>
 
-        <!-- Rarely needed: collapsed so the steps stay the whole story -->
-        <details class="moretools" data-only="generate image">
-          <summary><svg class="ic"><use href="#i-layers"/></svg>More tools</summary>
-          <div class="sect">
-            <h2>Add on top</h2>
-            <div class="stack">
-              <div class="row">
-                <button class="tool" data-tool="text"><svg class="ic"><use href="#i-text"/></svg>Text <span class="k">T</span></button>
-                <button class="tool" data-tool="shape"><svg class="ic"><use href="#i-shape"/></svg>Shape <span class="k">S</span></button>
+          <div class="step" data-only="image" id="stepUpload">
+            <span class="num">1</span>
+            <h2>Upload your frame</h2>
+            <div class="todo">
+              <button class="tool primary big" id="btnUploadFrame"><svg class="ic"><use href="#i-upload"/></svg>Upload frame PNG</button>
+              <div class="note">or drop it on the canvas. Best with a transparent opening.</div>
+            </div>
+            <div class="done">
+              <div class="doneline"><span id="uploadName">Frame image added</span></div>
+              <button class="link" id="btnReplaceFrame"><svg class="ic"><use href="#i-refresh"/></svg>Use a different image</button>
+            </div>
+          </div>
+
+          <div class="step" data-only="image" id="stepOpening">
+            <span class="num">2</span>
+            <h2>Opening</h2>
+            <div class="wait note">Upload your frame first.</div>
+            <div class="todo">
+              <div class="note" id="openingStatus">Finding the opening&#8230;</div>
+              <div class="stack">
+                <button class="tool primary" id="btnPickOpening" title="Click inside the opening of your image"><svg class="ic"><use href="#i-pick"/></svg>Click inside the opening</button>
+                <button class="tool" id="btnAutoScreen"><svg class="ic"><use href="#i-refresh"/></svg>Try finding it again</button>
+                <button class="tool" id="btnRemoveBg" title="For a PNG whose opening is white instead of transparent"><svg class="ic"><use href="#i-erase"/></svg>Opening is white? Make it transparent</button>
+                <details class="drawit">
+                  <summary>Draw it myself</summary>
+                  <div class="row" style="margin-top:7px">
+                    <button class="tool" data-tool="frameRect" title="Drag a rectangle (R)"><svg class="ic"><use href="#i-rect"/></svg>Rectangle</button>
+                    <button class="tool" data-tool="framePersp" title="Drag, then move the 4 corners (P)"><svg class="ic"><use href="#i-quad"/></svg>4 corners</button>
+                  </div>
+                </details>
               </div>
-              <button class="tool" data-act="addImage"><svg class="ic"><use href="#i-image"/></svg>Image layer</button>
-              <button class="tool" data-act="addOverlay" data-only="image"><svg class="ic"><use href="#i-layers"/></svg>Another artwork layer</button>
-              <button class="tool" id="btnSilhouetteFrame" data-only="image" title="Trace the visible subject into one frame"><svg class="ic"><use href="#i-silhouette"/></svg>Silhouette frame</button>
+            </div>
+            <div class="done">
+              <div class="doneline"><span id="openingDone">Opening found</span></div>
+              <div class="note">Not quite right? Drag the round corner points on the canvas.</div>
+              <button class="link" id="btnRedoOpening"><svg class="ic"><use href="#i-pick"/></svg>Wrong opening? Pick it by hand</button>
             </div>
           </div>
-          <div class="sect">
-            <h2>Layers <span class="val" style="font-weight:500">top first</span></h2>
-            <div class="layers" id="layerList"></div>
-          </div>
-          <div class="sect">
-            <h2>Saved mockups</h2>
-            <div class="stack" id="tplList"></div>
-          </div>
-        </details>
 
-        <!-- Last step, both modes. Sticky: the goal never scrolls out of view. -->
-        <div class="step" data-only="generate image" id="stepExport">
-          <span class="num" id="exportNum">3</span>
-          <h2>Check and export</h2>
-          <div class="wait note">Finish the steps above first.</div>
-          <div class="todo">
-            <button class="tool primary big" id="btnExportPixopikPanel"><svg class="ic"><use href="#i-export"/></svg>Export for Pixopik</button>
-            <button class="link trylink" id="btnTryPhoto" title="Preview a photo of your own in the opening. Optional: it is never exported."><svg class="ic"><use href="#i-photo"/></svg>Try it with a photo first (optional)</button>
+          <!-- Rarely needed for a frame made from an image -->
+          <details class="moretools" data-only="image">
+            <summary><svg class="ic"><use href="#i-settings"/></svg>Extra tools</summary>
+            <div class="sect">
+              <div class="stack">
+                <button class="tool" data-act="addOverlay" data-only="image"><svg class="ic"><use href="#i-layers"/></svg>Another artwork layer</button>
+                <button class="tool" id="btnSilhouetteFrame" data-only="image" title="Trace the visible subject into one frame"><svg class="ic"><use href="#i-silhouette"/></svg>Silhouette frame</button>
+              </div>
+            </div>
+          </details>
+
+          <!-- Last step, both modes. Sticky: the goal never scrolls out of view. -->
+          <div class="step" data-only="generate image" id="stepExport">
+            <span class="num" id="exportNum">3</span>
+            <h2>Check and export</h2>
+            <div class="wait note">Finish the steps above first.</div>
+            <div class="todo">
+              <button class="tool primary big" id="btnExportPixopikPanel"><svg class="ic"><use href="#i-export"/></svg>Export for Pixopik</button>
+              <button class="link trylink" id="btnTryPhoto" title="Preview a photo of your own in the opening. Optional: it is never exported."><svg class="ic"><use href="#i-photo"/></svg>Try it with a photo first (optional)</button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
+
+      <!-- UPLOADS: every image picked this session, one click to reuse -->
+      <section class="fpanel" data-panel="uploads">
+        <div class="fhead"><h2>Uploads</h2></div>
+        <div class="fbody">
+          <button class="tool primary big" data-act="addImage"><svg class="ic"><use href="#i-upload"/></svg>Upload an image</button>
+          <div class="note">Adds it as a layer on top. To make your own frame from a PNG, use <b>Frames &#8594; From image</b>.</div>
+          <div class="fsub">This session</div>
+          <div class="ugrid" id="uploadsGrid"></div>
+        </div>
+      </section>
+
+      <!-- TEXT -->
+      <section class="fpanel" data-panel="text">
+        <div class="fhead"><h2>Text</h2></div>
+        <div class="fbody">
+          <button class="tpreset h" data-text="heading">Add a heading</button>
+          <button class="tpreset s" data-text="subheading">Add a subheading</button>
+          <button class="tpreset b" data-text="body">Add a little bit of body text</button>
+          <div class="fsub">Font combinations</div>
+          <div class="combos" id="textCombos"></div>
+          <div class="note">Double-click text on the canvas to edit it. Fonts, size and colour are in the bar above the canvas.</div>
+        </div>
+      </section>
+
+      <!-- ELEMENTS -->
+      <section class="fpanel" data-panel="elements">
+        <div class="fhead"><h2>Elements</h2></div>
+        <div class="fbody">
+          <div class="fsub">Shapes</div>
+          <div class="egrid" id="shapeGrid"></div>
+          <div class="fsub">Colour for new shapes</div>
+          <div class="swatches" id="shapeSwatches"></div>
+        </div>
+      </section>
+
+      <!-- LAYERS -->
+      <section class="fpanel" data-panel="layers">
+        <div class="fhead"><h2>Layers</h2><span class="val" style="margin-left:auto">top first &#183; drag to reorder</span></div>
+        <div class="fbody">
+          <div class="layers" id="layerList"></div>
+          <div class="fsub">Saved mockups</div>
+          <div class="stack" id="tplList"></div>
+        </div>
+      </section>
     </aside>
 
     <!-- STAGE -->
     <main class="stage">
-      <div class="stagebar">
-        <span class="pill blue" id="modePill">Select</span>
-        <span id="stageMsg">Drag a corner point to adjust an opening · double-click an opening to try a photo</span>
-        <div class="spacer"></div>
-        <div class="zoom">
-          <button class="btn sm" id="zoomOut" title="Zoom out" aria-label="Zoom out"><svg class="ic"><use href="#i-minus"/></svg></button>
-          <span class="val" id="zoomVal">100%</span>
-          <button class="btn sm" id="zoomIn" title="Zoom in" aria-label="Zoom in"><svg class="ic"><use href="#i-plus"/></svg></button>
-          <button class="btn sm" id="zoomFit" title="Fit to screen"><svg class="ic"><use href="#i-fit"/></svg>Fit</button>
+      <!-- Context bar: follows the selection (24-editor.js) -->
+      <div class="ctxbar" id="ctxBar">
+        <div class="ctxtools" id="ctxTools"></div>
+        <div class="ctxidle">
+          <span id="nextTip"></span>
+          <span class="toolmsg"><span class="pill blue" id="modePill">Select</span><span id="stageMsg">Drag a corner point to adjust an opening · double-click an opening to try a photo</span></span>
         </div>
       </div>
+
       <div class="canvaswrap" id="wrap">
         <!-- First screen: pick one of the two ways to make a frame -->
         <div class="chooser" id="modeChooser">
@@ -687,10 +923,35 @@ body[data-mode="image"] [data-only~="image"]{display:block}
           <div class="hint" id="hint"></div>
         </div>
       </div>
-    </main>
 
-    <!-- RIGHT: inspector, rendered by 06-properties.js -->
-    <aside class="panel right" id="right"></aside>
+      <!-- How the frame will look in Pixopik, always at hand -->
+      <div class="pxfloat" id="pxFloat">
+        <header id="pxFloatToggle" role="button" tabindex="0" aria-expanded="true">
+          <svg class="ic"><use href="#i-eye"/></svg>Pixopik preview
+          <span class="pill" id="pxReady">Not ready</span>
+          <svg class="ic chev"><use href="#i-chev"/></svg>
+        </header>
+        <div class="pxbody">
+          <div class="live" id="liveSlot"></div>
+          <div class="livecap"><i></i><span id="liveCap">The sky shows where the photo goes</span><button class="link" id="pxMore">Status</button></div>
+          <div id="pxStatusSlot"></div>
+        </div>
+      </div>
+
+      <div class="zoomdock">
+        <button class="btn sm" id="zoomOut" title="Zoom out" aria-label="Zoom out"><svg class="ic"><use href="#i-minus"/></svg></button>
+        <input type="range" id="zoomRange" min="8" max="400" value="100" aria-label="Zoom">
+        <button class="btn sm" id="zoomIn" title="Zoom in" aria-label="Zoom in"><svg class="ic"><use href="#i-plus"/></svg></button>
+        <span class="val" id="zoomVal">100%</span>
+        <button class="btn sm" id="zoomFit" title="Fit to screen"><svg class="ic"><use href="#i-fit"/></svg>Fit</button>
+      </div>
+
+      <!-- Details: every property of the selection (06-properties.js) -->
+      <aside class="drawer" id="drawer" aria-label="Details">
+        <header><b id="drawerTitle">Details</b><button class="iconbtn" id="drawerClose" title="Close" aria-label="Close details"><svg class="ic"><use href="#i-close"/></svg></button></header>
+        <div id="right"></div>
+      </aside>
+    </main>
 
   </div>
 </div>
@@ -722,5 +983,6 @@ body[data-mode="image"] [data-only~="image"]{display:block}
 <script src="js/21-soft-bleed.js"></script><!-- hand-drawn artwork: drop target bleeds under the border -->
 <script src="js/22-modes.js"></script><!-- Generate / From image modes and the Generate panel -->
 <script src="js/23-pixopik-export.js"></script><!-- Export for Pixopik: overlay PNG + frame library entry -->
+<script src="js/24-editor.js"></script><!-- editor shell: panels, context bar, transform handles, undo, shortcuts -->
 </body>
 </html>

@@ -198,7 +198,7 @@ async function ffUploadFrame(replace) {
   ffDetect = 'idle';
   const m = await loadMeta(f.src);
   const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
-  addLayerTop({ id: uid(), type: 'overlay', name: f.name.replace(/\.[^.]+$/, '') || 'Frame image', visible: true, locked: true, opacity: 1,
+  addLayerTop({ id: uid(), type: 'overlay', name: ffNiceName(f.name, 'Frame image'), visible: true, locked: true, opacity: 1,
     src: f.src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
   sel = null;
   sync();
