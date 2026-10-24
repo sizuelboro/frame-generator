@@ -210,6 +210,34 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 .ecard .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .ecard .tip{margin-top:15px;font-size:11.5px;color:var(--text2)}
 .ecard .tip b{background:var(--soft2);border-radius:4px;padding:1px 5px;font-weight:600}
+/* ---------- guided steps ---------- */
+.step{padding:16px;border-bottom:1px solid var(--border)}
+.step h2{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin-bottom:11px;color:var(--text)}
+.step h2 .val{margin-left:auto;font-weight:600}
+.step .num{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:700;background:var(--blue);color:#fff;flex:0 0 21px}
+.step[data-step="done"] .num{background:var(--green)}
+.step[data-step="wait"]{opacity:.5}
+.step[data-step="wait"] .num{background:var(--text2)}
+.step .todo,.step .done,.step .wait{display:none}
+.step[data-step="on"] .todo,.step[data-step="done"] .done,.step[data-step="wait"] .wait{display:block}
+.step[data-step="done"] h2{margin-bottom:6px}
+.doneline{display:flex;gap:7px;align-items:center;font-size:13px;font-weight:550;margin-bottom:4px}
+.doneline i{font-style:normal;color:var(--green);font-weight:700}
+.doneline span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link{color:var(--blue);font-size:12.5px;font-weight:550;padding:2px 0}
+.link:hover{text-decoration:underline}
+.tool.big{min-height:46px;justify-content:center;font-size:14px}
+.step .note{margin:6px 0 2px}
+#openingStatus{margin:0 0 9px}
+#openingStatus.bad{color:#a25f24}
+.drawit summary,.moretools>summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text2);list-style:none}
+.drawit summary::before,.moretools>summary::before{content:"\25B8  "}
+.drawit[open] summary::before,.moretools[open]>summary::before{content:"\25BE  "}
+.moretools>summary{padding:14px 16px}
+.moretools[open]>summary{border-bottom:1px solid var(--border)}
+.moretools [data-only]{display:none}
+body[data-mode="image"] .moretools [data-only~="image"]{display:flex}
+
 /* ---------- modes ---------- */
 /* A panel section names the modes it belongs to; the body names the mode
    the Studio is in. Sections for the other mode simply are not shown. */
@@ -309,23 +337,8 @@ body[data-mode="image"] [data-only~="image"]{display:block}
 
     <div class="sep"></div>
 
-    <!-- File: four actions folded into one menu -->
-    <div class="grp">
-      <div class="menuwrap">
-        <button class="btn" id="btnFileMenu" aria-haspopup="menu" aria-expanded="false">File <span class="caret">&#9662;</span></button>
-        <div class="menu left" id="menuFile" role="menu">
-          <button class="btn" id="btnNew">New</button>
-          <button class="btn" id="btnLoadJson">Open project (.json)</button>
-          <button class="btn" id="btnSaveJson">Save project (.json)</button>
-          <button class="btn" id="btnSaveTpl" title="Keep this mockup in the browser with empty frames, ready for any new artwork">Save as reusable mockup</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="sep"></div>
-
     <!-- Two ways to make a frame. Everything mode-specific lives in the left
-         panel, so the toolbar only carries what both modes share. -->
+         panel as numbered steps, so the toolbar stays almost empty. -->
     <div class="modeswitch" role="tablist" aria-label="How to make the frame">
       <button class="modetab" role="tab" data-mode-tab="generate" aria-selected="false">Generate</button>
       <button class="modetab" role="tab" data-mode-tab="image" aria-selected="false">From image</button>
@@ -333,42 +346,24 @@ body[data-mode="image"] [data-only~="image"]{display:block}
 
     <div class="spacer"></div>
 
-    <!-- State, not actions -->
-    <div class="grp">
-      <span class="pill" id="sizePill">1200 &#215; 800</span>
-      <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible mockup and its frames">Trim canvas</button>
-    </div>
-
-    <div class="sep"></div>
-
-    <!-- Fine-tuning that most creators never touch -->
+    <!-- Everything most creators never need, in one menu -->
     <div class="grp">
       <div class="menuwrap">
-        <button class="btn" id="btnAdvancedMenu" aria-haspopup="menu" aria-expanded="false">Advanced <span class="caret">&#9662;</span></button>
-        <div class="menu" id="menuAdvanced" role="menu">
-          <h3>Edge bleed</h3>
+        <button class="btn" id="btnFileMenu" aria-haspopup="menu" aria-expanded="false">More <span class="caret">&#9662;</span></button>
+        <div class="menu" id="menuFile" role="menu">
+          <h3>Project</h3>
+          <button class="btn" id="btnNew">New frame</button>
+          <button class="btn" id="btnLoadJson">Open project (.json)</button>
+          <button class="btn" id="btnSaveJson">Save project (.json)</button>
+          <button class="btn" id="btnSaveTpl" title="Keep this mockup in the browser with empty frames, ready for any new artwork">Save as reusable mockup</button>
+          <h3>Canvas <span class="pill" id="sizePill" style="margin-left:4px">1200 &#215; 800</span></h3>
+          <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible artwork and its openings. Export for Pixopik does this for you.">Trim canvas</button>
           <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
-          <h3>Shadow strength</h3>
           <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="sep"></div>
-
-    <!-- Ship -->
-    <div class="grp">
-      <div class="menuwrap">
-        <button class="btn" id="btnExportMenu" aria-haspopup="menu" aria-expanded="false">Export <span class="caret">&#9662;</span></button>
-        <div class="menu" id="menuExport" role="menu">
-          <h3>Pixopik</h3>
-          <button class="btn" id="btnExportPixopikMenu">Export for Pixopik&#8230;</button>
-          <h3>Image</h3>
+          <h3>Other exports</h3>
           <button class="btn" id="btnExport">Export PNG</button>
-          <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
-          <h3>Photoshop</h3>
+          <button class="btn" id="btnExportOverlay">Export overlay PNG + coordinates</button>
           <button class="btn" id="btnExportPsd" title="Layered PSD with the opening written as a smart object: the buyer double-clicks one layer and drops their artwork in">Photoshop PSD (.psd)</button>
-          <h3>AI scene round trip</h3>
           <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt">Export for AI</button>
           <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
         </div>
@@ -381,108 +376,114 @@ body[data-mode="image"] [data-only~="image"]{display:block}
 
     <!-- LEFT -->
     <aside class="panel left">
-      <!-- Generate: a moulding drawn around an opening of the chosen shape -->
-      <div class="sect" data-only="generate">
-        <h2>Shape</h2>
+      <!-- Generate: three choices, then export -->
+      <div class="step" data-only="generate" data-step="on">
+        <h2><span class="num">1</span> Shape</h2>
         <div class="chips" id="genShapes" role="radiogroup" aria-label="Opening shape"></div>
         <div class="row" style="margin-top:9px">
           <button class="btn sm" id="genOrient" title="Portrait or landscape">Portrait &#8645;</button>
         </div>
       </div>
-      <div class="sect" data-only="generate">
-        <h2>Style</h2>
+      <div class="step" data-only="generate" data-step="on">
+        <h2><span class="num">2</span> Style</h2>
         <div class="styles" id="genStyles" role="radiogroup" aria-label="Frame style"></div>
       </div>
-      <div class="sect" data-only="generate">
-        <h2>Border width <span class="val" id="genBorderVal" style="text-transform:none;letter-spacing:0">7.5%</span></h2>
+      <div class="step" data-only="generate" data-step="on">
+        <h2><span class="num">3</span> Border width <span class="val" id="genBorderVal">7.5%</span></h2>
         <input type="range" id="genBorder" min="2" max="16" step="0.1" value="7.5" aria-label="Border width, percent of the opening">
-        <div class="note">Measured against the short side of the opening.</div>
       </div>
 
-      <!-- From image: the creator's own artwork, opening found or drawn -->
-      <div class="sect" data-only="image">
-        <h2>1 &#183; Frame image</h2>
-        <div class="stack">
-          <button class="tool primary" data-act="addOverlay">
+      <!-- From image: each step opens once the one before it is done -->
+      <div class="step" data-only="image" id="stepUpload">
+        <h2><span class="num">1</span> Upload your frame</h2>
+        <div class="todo">
+          <button class="tool primary big" id="btnUploadFrame">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
-            Upload frame image
+            Upload frame PNG
           </button>
-          <div class="note">A PNG whose opening is transparent works best. You can also drop it on the canvas.</div>
+          <div class="note">or drop it on the canvas. Best with a transparent opening.</div>
         </div>
-      </div>
-      <div class="sect" data-only="image">
-        <h2>2 &#183; Opening</h2>
-        <div class="stack">
-          <button class="tool primary" id="btnAutoScreen" title="Find the transparent or checkerboard opening, then fall back to a flat screen colour">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>
-            Auto-detect opening
-          </button>
-          <button class="tool" id="btnPickOpening" title="Click inside the opening of your image to select it">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3l14 9-6 1.5L10 20z"/></svg>
-            Select manually
-          </button>
-          <div class="row">
-            <button class="tool" data-tool="frameRect" title="Draw a rectangular opening (R)">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="1.5"/></svg>
-              Rect <span class="k">R</span>
-            </button>
-            <button class="tool" data-tool="framePersp" title="Draw a four-point perspective opening (P)">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6l16 2v8L4 18z"/></svg>
-              Persp. <span class="k">P</span>
-            </button>
-          </div>
-          <div class="note">Inside of your PNG is white, not transparent? Run <b>Remove background</b> first.</div>
-        </div>
-      </div>
-      <div class="sect" data-only="image">
-        <h2>More</h2>
-        <div class="stack">
-          <button class="tool" id="btnRemoveBg">Remove background</button>
-          <button class="tool" id="btnSilhouetteFrame" title="Trace the visible subject into one frame">Silhouette frame</button>
+        <div class="done">
+          <div class="doneline"><i>&#10003;</i><span id="uploadName">Frame image added</span></div>
+          <button class="link" id="btnReplaceFrame">Use a different image</button>
         </div>
       </div>
 
-      <!-- Both modes: decoration on top of the frame -->
-      <div class="sect" data-only="generate image">
-        <h2>Decorate</h2>
-        <div class="stack">
-          <button class="tool" data-act="addImage">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/></svg>
-            Image layer
-          </button>
-          <button class="tool" data-act="addShadow">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7"/><path d="M14.5 14.5L21 21" opacity=".5"/></svg>
-            Shadow layer
-          </button>
-          <div class="row">
-            <button class="tool" data-tool="text">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 6h14M12 6v13M9 19h6"/></svg>
-              Text <span class="k">T</span>
+      <div class="step" data-only="image" id="stepOpening">
+        <h2><span class="num">2</span> Opening</h2>
+        <div class="wait note">Upload your frame first.</div>
+        <div class="todo">
+          <div class="note" id="openingStatus">Finding the opening&#8230;</div>
+          <div class="stack">
+            <button class="tool primary" id="btnPickOpening" title="Click inside the opening of your image">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3l14 9-6 1.5L10 20z"/></svg>
+              Click inside the opening
             </button>
-            <button class="tool" data-tool="shape">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="9" height="9" rx="1.5"/><circle cx="15.5" cy="15.5" r="4.5"/></svg>
-              Shape <span class="k">S</span>
+            <button class="tool" id="btnAutoScreen">Try finding it again</button>
+            <button class="tool" id="btnRemoveBg" title="For a PNG whose opening is white instead of transparent">Opening is white? Make it transparent</button>
+            <details class="drawit">
+              <summary>Draw it myself</summary>
+              <div class="row" style="margin-top:7px">
+                <button class="tool" data-tool="frameRect" title="Drag a rectangle (R)">Rectangle</button>
+                <button class="tool" data-tool="framePersp" title="Drag, then move the 4 corners (P)">4 corners</button>
+              </div>
+            </details>
+          </div>
+        </div>
+        <div class="done">
+          <div class="doneline"><i>&#10003;</i><span id="openingDone">Opening found</span></div>
+          <div class="note">Not quite right? Drag the blue corner points on the canvas.</div>
+          <button class="link" id="btnRedoOpening">Wrong opening? Remove it and pick by hand</button>
+        </div>
+      </div>
+
+      <!-- Last step, both modes -->
+      <div class="step" data-only="generate image" id="stepExport">
+        <h2><span class="num" id="exportNum">3</span> Check and export</h2>
+        <div class="wait note">Finish the steps above first.</div>
+        <div class="todo">
+          <div class="stack">
+            <button class="tool" id="btnTryPhoto">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/></svg>
+              Try with a photo (optional)
             </button>
+            <button class="tool primary" id="btnExportPixopikPanel">Export for Pixopik</button>
           </div>
         </div>
       </div>
 
-      <div class="sect">
-        <h2>Layers <span style="text-transform:none;letter-spacing:0;font-weight:500">(top first)</span></h2>
-        <div class="layers" id="layerList"></div>
-      </div>
-
-      <div class="sect">
-        <h2>Saved mockups</h2>
-        <div class="stack" id="tplList"></div>
-      </div>
+      <!-- Rarely needed: collapsed so the steps stay the whole story -->
+      <details class="moretools" data-only="generate image">
+        <summary>More tools</summary>
+        <div class="sect">
+          <h2>Add on top</h2>
+          <div class="stack">
+            <div class="row">
+              <button class="tool" data-tool="text">Text <span class="k">T</span></button>
+              <button class="tool" data-tool="shape">Shape <span class="k">S</span></button>
+            </div>
+            <button class="tool" data-act="addImage">Image layer</button>
+            <button class="tool" data-act="addShadow">Shadow layer</button>
+            <button class="tool" data-act="addOverlay" data-only="image">Another artwork layer</button>
+            <button class="tool" id="btnSilhouetteFrame" data-only="image" title="Trace the visible subject into one frame">Silhouette frame</button>
+          </div>
+        </div>
+        <div class="sect">
+          <h2>Layers <span style="text-transform:none;letter-spacing:0;font-weight:500">(top first)</span></h2>
+          <div class="layers" id="layerList"></div>
+        </div>
+        <div class="sect">
+          <h2>Saved mockups</h2>
+          <div class="stack" id="tplList"></div>
+        </div>
+      </details>
     </aside>
 
     <!-- STAGE -->
     <main class="stage">
       <div class="stagebar">
         <span class="pill blue" id="modePill">Select</span>
-        <span id="stageMsg">Click a frame to select · double-click to edit the image inside</span>
+        <span id="stageMsg">Drag a blue corner to adjust an opening · double-click an opening to try a photo</span>
         <div class="spacer"></div>
         <button class="btn sm" id="zoomOut">−</button>
         <span class="val" id="zoomVal" style="min-width:42px;text-align:center">100%</span>
@@ -512,9 +513,9 @@ body[data-mode="image"] [data-only~="image"]{display:block}
           <div class="ecard">
             <svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="7" y="8.5" width="10" height="7" rx="1" stroke-dasharray="2.5 2"/></svg>
             <h3>Drop your frame PNG here</h3>
-            <p>Use an image whose opening is transparent. Then press <b>Auto-detect opening</b> on the left.</p>
+            <p>The opening is found for you as soon as it lands.</p>
             <div class="acts">
-              <button class="btn primary" id="esAddOverlay">Upload frame image</button>
+              <button class="btn primary" id="esAddOverlay">Upload frame PNG</button>
             </div>
           </div>
         </div>

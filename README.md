@@ -68,10 +68,13 @@ decides which controls the left panel shows; switching later with the
 | Mode | Left panel | Use it for |
 | --- | --- | --- |
 | **Generate** | Shape (1:1, 4:5, 3:4, 2:3, 9:16, portrait/landscape), Style grid, Border width | A moulding drawn for you. One click on a style draws the frame; changing any setting redraws the same frame. |
-| **From image** | Upload frame image, Auto-detect opening, Select manually, Rect / Perspective, Remove background, Silhouette | Your own artwork, such as a hand-drawn crayon frame. |
+| **From image** | Three steps: 1 Upload your frame, 2 Opening (found automatically), 3 Check and export | Your own artwork, such as a hand-drawn crayon frame. |
 
-Both modes share **Decorate** (image, shadow, text, shape layers), the layer
-list and **Export for Pixopik**.
+The left panel is a list of numbered steps. A step opens only once the one
+before it is done, and shows a green tick when it is finished. Text, shapes,
+extra layers, the layer list and saved mockups are folded under **More
+tools**; project files, Trim canvas, bleed and the other exports are in the
+**More ▾** menu.
 
 ## Frame shapes and designs
 
@@ -102,15 +105,14 @@ which is exactly how a "US Letter" opening (0.773) ends up sold as A4 (0.707).
 
 **From image:**
 
-1. **Upload frame image** (or drop it on the canvas). The opening should be
-   transparent; if it is white, run **Remove background** first.
-2. **Auto-detect opening**. For hand-drawn borders (crayon, watercolour) it
-   tucks the photo under the dense strokes so no gaps show. Or **Select
-   manually** and click inside the opening (tolerance 25 to 40).
-3. Optional: select the opening and **Set image** to check the fit.
-4. Leave **Advanced → Auto bleed** at 6px (8px for rough edges). It is a
-   ceiling, not a fixed amount.
-5. **Export for Pixopik**.
+1. **Upload frame PNG** (or drop it on the canvas). The opening is found as
+   soon as it lands. Hand-drawn borders (crayon, watercolour) get the photo
+   tucked under the strokes so no gaps show.
+2. If it was not found, click **inside the opening** on the canvas. A white
+   opening can be made transparent from the same step, and **Draw it
+   myself** offers a rectangle or four corners. To adjust a found opening,
+   drag its blue corner points.
+3. Optionally **Try with a photo**, then **Export for Pixopik**.
 
 ## Export for Pixopik
 

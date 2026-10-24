@@ -212,7 +212,7 @@ function setTool(t) {
   const names = { select: 'Select', frameRect: 'Rect frame', framePersp: 'Perspective frame', text: 'Text', shape: 'Shape' };
   $('#modePill').textContent = names[t] || 'Select';
   $('#stageMsg').textContent = t === 'select'
-    ? 'Click a frame to select · double-click to edit the image inside'
+    ? 'Drag a blue corner to adjust an opening \u00b7 double-click an opening to try a photo'
     : (t === 'text' || t === 'shape' ? 'Click on the canvas to place it' : 'Drag on the canvas to draw the frame');
   cv.style.cursor = t === 'select' ? 'default' : 'crosshair';
 }

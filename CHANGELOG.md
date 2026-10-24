@@ -36,6 +36,14 @@ the AI round trip, ratio presets and frame designs stay.
   applies Auto bleed, simplifies the opening to at most 400 points and
   validates it with Pixopik's own `isFrameClip` rule. `js/23-pixopik-export.js`,
   [docs/pixopik-export.md](docs/pixopik-export.md).
+- **Guided steps.** Both modes are numbered steps that open one after
+  another (wait / on / done). From image finds the opening as soon as the
+  artwork lands, goes straight into picking without a tolerance prompt, and
+  says so when nothing was found. A detector result covering the whole image
+  (a photo with no opening) is treated as not found. Rarely used tools are
+  folded under **More tools**; the toolbar is just the mode tabs, **More ▾**
+  and **Export for Pixopik**. A selected opening shows **Try a photo** and
+  **Delete opening**, with the rest under Advanced.
 - **9:16 ratio preset**, for story and widescreen frames.
 - **`PIXOPIK_*` limits** in `shared/frameforge-limits.js`.
 - **`test:pixopik`**: a browser suite that drives the real `index.html`.

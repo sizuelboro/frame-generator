@@ -43,6 +43,5 @@
 		if (!from || !to) return
 		from.addEventListener("click", function () { to.click() })
 	}
-	forward("esAddOverlay", '[data-act="addOverlay"]')
-	forward("btnExportPixopikMenu", "#btnExportPixopik")
+	forward("esAddOverlay", "#btnUploadFrame")
 })()

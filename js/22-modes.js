@@ -47,6 +47,7 @@ const ffGen = {
 window.ffStudioMode = null;
 
 function ffBlankDoc(w, h) {
+  _ffTried.clear();
   doc = { canvas: { w: w || 1200, h: h || 800, bg: '#FFFFFF' }, layers: [] };
   sel = null; contentEdit = null; contentCache.clear();
   ffGen.overlayId = ffGen.frameId = null;
@@ -91,7 +92,165 @@ function ffSyncStage() {
   const mode = window.ffStudioMode;
   if (chooser) chooser.classList.toggle('gone', !!mode);
   if (empty) empty.classList.toggle('gone', !(mode === 'image' && !doc.layers.length));
+  ffSyncSteps();
+  ffMaybeAutoDetect();
 }
+
+/* ---------------------------------------------------------------------
+   Guided steps
+   ---------------------------------------------------------------------
+   The left panel is a short list of numbered steps. Each step is in one
+   of three states, written to data-step and styled in index.html:
+
+     wait   an earlier step is not done yet (greyed, says what to do first)
+     on     this is the step to do now (shows its buttons)
+     done   finished (a green tick and a way to redo it)
+
+   The state is worked out from the document every time the layers change,
+   never stored, so undoing by hand (deleting a layer) puts the step back. */
+/* An "opening" whose own area is this much of the artwork's box is the
+   whole image. Measured on the polygon, not its bounding box: a crayon
+   frame's opening bleeds out to the edges on purpose but stays round. */
+const FF_WHOLE_IMAGE = 0.95;
+let ffDetect = 'idle';          // idle | running | failed
+const _ffTried = new Set();     // artwork already sent through auto-detect
+
+function ffArtLayers() {
+  return doc.layers.filter(l => l.type === 'overlay' && l.visible !== false && !l.frameDesignId);
+}
+function ffOpenings() {
+  return doc.layers.filter(l => l.type === 'frame' && l.points && l.points.length >= 3);
+}
+function ffStep(id, state) {
+  const el = $('#' + id);
+  if (el) el.dataset.step = state;
+}
+
+function ffSyncSteps() {
+  const mode = window.ffStudioMode;
+  const art = ffArtLayers(), openings = ffOpenings();
+  if (mode === 'image') {
+    ffStep('stepUpload', art.length ? 'done' : 'on');
+    ffStep('stepOpening', !art.length ? 'wait' : openings.length ? 'done' : 'on');
+    ffStep('stepExport', openings.length ? 'on' : 'wait');
+    if ($('#uploadName') && art.length) $('#uploadName').textContent = String(art[0].name || '').replace(/\s*overlay$/i, '') || 'Frame image added';
+    if ($('#openingDone')) $('#openingDone').textContent = openings.length > 1
+      ? openings.length + ' openings found' : 'Opening found';
+    const st = $('#openingStatus');
+    if (st) {
+      st.classList.toggle('bad', ffDetect === 'failed');
+      st.textContent = ffDetect === 'running' ? 'Finding the opening\u2026'
+        : ffDetect === 'failed' ? 'Could not find the opening automatically. Click inside it on the canvas instead:'
+        : 'Click inside the opening on the canvas:';
+    }
+  } else if (mode === 'generate') {
+    ffStep('stepExport', openings.length ? 'on' : 'wait');
+  }
+  if ($('#exportNum')) $('#exportNum').textContent = mode === 'generate' ? '4' : '3';
+}
+
+/* From image finds the opening as soon as artwork lands, however it got
+   there (upload button, drop, opened project), and only once per artwork,
+   so removing an opening by hand does not bring it straight back. */
+function ffMaybeAutoDetect() {
+  if (window.ffStudioMode !== 'image' || ffDetect === 'running' || ffOpenings().length) return;
+  const L = ffArtLayers().find(l => !_ffTried.has(l.id));
+  if (L) ffAutoDetect(L);
+}
+async function ffAutoDetect(L) {
+  _ffTried.add(L.id);
+  ffDetect = 'running';
+  ffSyncSteps();
+  const before = { src: L.src, name: L.name, ids: new Set(doc.layers.map(l => l.id)) };
+  let ok = false;
+  try { ok = await autoHoleApply(L); } catch (e) { ok = false; }
+  /* On artwork with no opening at all (a photo, a solid card) the detector
+     can hand back the whole image as the "opening". That is not a frame,
+     so treat it as not found and put the artwork back as it was. */
+  const added = doc.layers.filter(l => l.type === 'frame' && !before.ids.has(l.id));
+  const box = L.w * L.h;
+  if (ok && added.some(f => Math.abs(polygonSignedArea(f.points)) >= box * FF_WHOLE_IMAGE)) {
+    doc.layers = doc.layers.filter(l => !added.includes(l));
+    L.src = before.src; L.name = before.name;
+    contentCache.clear(); sel = null;
+    ok = false;
+    sync();
+  }
+  ffDetect = ok ? 'idle' : 'failed';
+  // nothing selected: the canvas shows the frame, not a crowd of handles
+  if (ok) { sel = null; sync(); }
+  ffSyncSteps();
+  if (!ok) toast('No transparent opening found \u00b7 click inside the opening instead');
+}
+
+/* The frame image itself. Replacing it clears the old artwork and its
+   openings, but only once a new file was actually picked. */
+async function ffUploadFrame(replace) {
+  const f = await pickFile();
+  if (!f) return;
+  if (replace) {
+    const gone = new Set([...ffArtLayers(), ...ffOpenings()].map(l => l.id));
+    doc.layers = doc.layers.filter(l => !gone.has(l.id));
+  }
+  ffDetect = 'idle';
+  const m = await loadMeta(f.src);
+  const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
+  addLayerTop({ id: uid(), type: 'overlay', name: f.name.replace(/\.[^.]+$/, '') || 'Frame image', visible: true, locked: true, opacity: 1,
+    src: f.src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
+  sel = null;
+  sync();
+}
+if ($('#btnUploadFrame')) $('#btnUploadFrame').onclick = () => ffUploadFrame(false);
+if ($('#btnReplaceFrame')) $('#btnReplaceFrame').onclick = () => ffUploadFrame(true);
+
+/* Remove the opening and pick it by hand. Auto-detect is not re-run: it
+   would only find the same opening again. */
+if ($('#btnRedoOpening')) $('#btnRedoOpening').onclick = () => {
+  doc.layers = doc.layers.filter(l => l.type !== 'frame');
+  sel = null; contentEdit = null; ffDetect = 'idle';
+  sync();
+};
+
+/* Straight into picking: the old tolerance prompt in 14-wand.js asked a
+   question most creators cannot answer. 25 suits a transparent opening. */
+if ($('#btnPickOpening')) $('#btnPickOpening').onclick = () => {
+  if (!ffArtLayers().length) { toast('Upload your frame first'); return; }
+  wandMode(true);
+  toast('Click inside the opening');
+};
+
+/* Remove background works on the selected layer; in the steps nothing is
+   selected, so point it at the frame image, then look for the opening. */
+if ($('#btnRemoveBg')) {
+  const removeBgFor = $('#btnRemoveBg').onclick;
+  $('#btnRemoveBg').onclick = async () => {
+    const art = ffArtLayers()[0];
+    if (!art) { toast('Upload your frame first'); return; }
+    sel = art.id;
+    await removeBgFor();
+    if (!ffOpenings().length) { _ffTried.delete(art.id); ffMaybeAutoDetect(); }
+  };
+}
+
+/* The same button runs the detector again on the frame image. */
+if ($('#btnAutoScreen')) {
+  const detectAgain = $('#btnAutoScreen').onclick;
+  $('#btnAutoScreen').onclick = () => {
+    const art = ffArtLayers()[0];
+    if (!art) { toast('Upload your frame first'); return; }
+    sel = art.id;
+    return detectAgain();
+  };
+}
+
+if ($('#btnTryPhoto')) $('#btnTryPhoto').onclick = () => {
+  const o = ffOpenings().sort((a, b) => { const p = bbox(a.points), q = bbox(b.points); return q.w * q.h - p.w * p.h; })[0];
+  if (!o) return;
+  setImageFor(o);
+};
+if ($('#btnExportPixopikPanel')) $('#btnExportPixopikPanel').onclick = () => $('#btnExportPixopik').click();
+
+
 
 document.querySelectorAll('[data-choose]').forEach(b =>
   b.addEventListener('click', () => ffChooseMode(b.dataset.choose)));

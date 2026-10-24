@@ -130,7 +130,8 @@ async function testModes() {
   await sleep(50);
   chk('mode is image', W.ffStudioMode === 'image');
   chk('layers untouched', G('doc').layers.map(function (l) { return l.id; }).join(',') === ids);
-  chk('image tools shown', shown('#btnAutoScreen') && shown('#btnPickOpening') && shown('[data-act="addOverlay"]'));
+  chk('From image starts at the upload step (a generated frame is not frame artwork)',
+    $('#stepUpload').dataset.step === 'on' && shown('#btnUploadFrame') && $('#stepOpening').dataset.step === 'wait');
   chk('generate panel hidden', !shown('#genStyles'));
   click('[data-mode-tab="generate"]');
   await sleep(50);
@@ -302,6 +303,82 @@ async function testNewAndImage() {
   chk('no script errors through the whole run', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
 }
 
+/* Frame artwork with a transparent window in the middle. */
+function framePng(withHole) {
+  var c = D.createElement('canvas');
+  c.width = 400; c.height = 300;
+  var x = c.getContext('2d');
+  x.fillStyle = '#c0392b'; x.fillRect(0, 0, 400, 300);
+  if (withHole === true) x.clearRect(80, 60, 240, 180);
+  if (withHole === 'noise') {
+    // a busy photo with no opening anywhere
+    var img = x.getImageData(0, 0, 400, 300), seed = 7;
+    for (var i = 0; i < img.data.length; i += 4) {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      img.data[i] = seed & 255; img.data[i + 1] = (seed >> 8) & 255; img.data[i + 2] = (seed >> 16) & 255; img.data[i + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+  }
+  return c.toDataURL('image/png');
+}
+async function until(cond, ms) {
+  for (var i = 0; i < (ms || 6000) / 50; i++) { if (cond()) return true; await sleep(50); }
+  return false;
+}
+
+async function testSteps() {
+  section('12. From image is a guided list of steps');
+  click('#btnNew');
+  await sleep(50);
+  var ok = [].slice.call(D.querySelectorAll('button')).find(function (b) { return b.textContent === 'Start new'; });
+  if (ok) ok.click();
+  await sleep(50);
+  click('[data-choose="image"]');
+  await sleep(50);
+  chk('step 1 is the only open step', $('#stepUpload').dataset.step === 'on' &&
+    $('#stepOpening').dataset.step === 'wait' && $('#stepExport').dataset.step === 'wait');
+  chk('opening tools are not offered before there is a frame image', !shown('#btnPickOpening') && !shown('[data-tool="frameRect"]'));
+  chk('rarely used tools are folded away', !$('.moretools').open);
+
+  G('doc').layers.push({ id: 'art1', type: 'overlay', name: 'Red frame', visible: true, locked: true, opacity: 1,
+    src: framePng(true), x: 100, y: 100, w: 400, h: 300, rotation: 0 });
+  W.sync();
+  var found = await until(function () { return G('doc').layers.some(function (l) { return l.type === 'frame'; }); });
+  chk('the opening is found as soon as the artwork lands', found);
+  await sleep(50);
+  chk('steps 1 and 2 are done, export is open', $('#stepUpload').dataset.step === 'done' &&
+    $('#stepOpening').dataset.step === 'done' && $('#stepExport').dataset.step === 'on',
+    [$('#stepUpload').dataset.step, $('#stepOpening').dataset.step, $('#stepExport').dataset.step].join(','));
+  chk('step 1 names the file', /Red frame/.test($('#uploadName').textContent));
+  var fr = G('doc').layers.find(function (l) { return l.type === 'frame'; });
+  var b = W.bbox(fr.points);
+  chk('the found opening is the window', Math.abs(b.w - 240 * 400 / 400) < 12 && b.x > 150 && b.x < 200,
+    Math.round(b.x) + ',' + Math.round(b.y) + ' ' + Math.round(b.w) + 'x' + Math.round(b.h));
+
+  click('#btnRedoOpening');
+  await sleep(300);
+  chk('redo removes the opening and goes back to step 2', !G('doc').layers.some(function (l) { return l.type === 'frame'; }) &&
+    $('#stepOpening').dataset.step === 'on');
+  chk('and does not just find the same opening again', !G('doc').layers.some(function (l) { return l.type === 'frame'; }));
+  chk('step 2 offers clicking inside the opening first', shown('#btnPickOpening') && $('#btnPickOpening').classList.contains('primary'));
+  click('#btnPickOpening');
+  chk('picking starts without a tolerance question', G('_wandOn') === true && !D.querySelector('form') &&
+    [].every.call(D.body.children, function (n) { return !(n.style && n.style.position === 'fixed'); }));
+  W.wandMode(false);
+
+  G('doc').layers = [];
+  W.sync();
+  G('doc').layers.push({ id: 'art2', type: 'overlay', name: 'Busy photo', visible: true, locked: true, opacity: 1,
+    src: framePng('noise'), x: 100, y: 100, w: 400, h: 300, rotation: 0 });
+  W.sync();
+  await until(function () { return $('#openingStatus').classList.contains('bad'); });
+  chk('when nothing is found, step 2 says so and stays open', $('#stepOpening').dataset.step === 'on' &&
+    /Could not find/.test($('#openingStatus').textContent));
+  chk('the right panel says what to do next', /inside the opening/.test(($('#nextTip') || {}).textContent || ''),
+    ($('#nextTip') || {}).textContent);
+  chk('no script errors in the steps', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
+}
+
 async function run() {
   try {
     await testModes();
@@ -309,6 +386,7 @@ async function run() {
     await testBuild();
     await testDialog();
     await testNewAndImage();
+    await testSteps();
   } catch (error) {
     chk('suite completed without throwing', false, error && (error.stack || error.message));
   }

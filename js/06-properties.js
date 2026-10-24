@@ -8,37 +8,42 @@
    ========================================================================= */
 
 /* ---------------------------- properties ---------------------------- */
+/* One sentence saying what to do now, following the steps on the left. */
+function ffNextTip() {
+  const mode = window.ffStudioMode;
+  const art = doc.layers.some(l => l.type === 'overlay' && !l.frameDesignId);
+  const opening = doc.layers.some(l => l.type === 'frame');
+  if (!mode) return 'Pick <b>Generate</b> to have a frame drawn for you, or <b>From image</b> to use your own frame PNG.';
+  if (mode === 'generate') return opening
+    ? 'Change the shape, style or border on the left until it looks right, then <b>Export for Pixopik</b>.'
+    : 'Click a <b>style</b> on the left to draw a frame.';
+  if (!art) return '<b>Upload your frame PNG</b> on the left, or drop it on the canvas.';
+  if (!opening) return 'Click <b>inside the opening</b> of your frame on the canvas.';
+  return 'Drag a blue corner point if the opening needs adjusting, then <b>Export for Pixopik</b>.';
+}
+
 function refreshProps() {
   const box = $('#right');
   const L = layer(sel);
   if (!L) {
     box.innerHTML = `
       <div class="sect">
-        <h2>Canvas</h2>
-        <div class="stack">
-          <div class="row">
-            <div class="field"><label>Width</label><input class="inp" type="number" id="cw" value="${doc.canvas.w}"></div>
-            <div class="field"><label>Height</label><input class="inp" type="number" id="ch" value="${doc.canvas.h}"></div>
-          </div>
-          <div class="field"><label>Background</label><input type="color" id="cbg" value="${doc.canvas.bg === 'transparent' ? '#ffffff' : doc.canvas.bg}"></div>
-          <button class="btn sm" id="cbgT">Make background transparent</button>
-        </div>
+        <h2>Next</h2>
+        <div class="note" id="nextTip">${ffNextTip()}</div>
       </div>
-      <div class="sect">
-        <h2>How it works</h2>
-        <div class="note">${window.ffStudioMode === 'generate' ? `
-          <b>1.</b> Pick a <b>shape</b> on the left.<br>
-          <b>2.</b> Click a <b>style</b>. The frame is drawn at once; changing the shape, style or border width redraws it.<br>
-          <b>3.</b> Optional: click the opening and <b>Set image</b> to preview a photo.<br>
-          <b>4.</b> <b>Export for Pixopik</b>.` : !window.ffStudioMode ? `
-          Pick <b>Generate</b> to have a frame drawn for you, or <b>From image</b> to start from your own frame PNG.` : `
-          <b>1.</b> Upload or drop your frame PNG (the opening should be transparent).<br>
-          <b>2.</b> Press <b>Auto-detect opening</b>, or <b>Select manually</b> and click inside the opening. You can also draw a <b>Rect</b> / <b>Perspective</b> opening.<br>
-          <b>3.</b> New openings go under the artwork automatically.<br>
-          <b>4.</b> Optional: set a preview image in the opening, then drag / scroll to fit.<br>
-          <b>5.</b> <b>Export for Pixopik</b>, or <b>File → Save as reusable mockup</b>.`}
+      <details class="moretools">
+        <summary>Canvas settings</summary>
+        <div class="sect">
+          <div class="stack">
+            <div class="row">
+              <div class="field"><label>Width</label><input class="inp" type="number" id="cw" value="${doc.canvas.w}"></div>
+              <div class="field"><label>Height</label><input class="inp" type="number" id="ch" value="${doc.canvas.h}"></div>
+            </div>
+            <div class="field"><label>Background</label><input type="color" id="cbg" value="${doc.canvas.bg === 'transparent' ? '#ffffff' : doc.canvas.bg}"></div>
+            <button class="btn sm" id="cbgT">Make background transparent</button>
+          </div>
         </div>
-      </div>`;
+      </details>`;
     $('#cw').onchange = (e) => { doc.canvas.w = clamp(+e.target.value || 1200, 50, 6000); sizePill(); sync(); };
     $('#ch').onchange = (e) => { doc.canvas.h = clamp(+e.target.value || 800, 50, 6000); sizePill(); sync(); };
     $('#cbg').oninput = (e) => { doc.canvas.bg = e.target.value; render(); };
@@ -78,7 +83,7 @@ function refreshProps() {
         </div>
         <div class="note">Drag the 4 corner handles on the canvas. The image is warped with a real homography transform — not a stretched rectangle.</div>
         <div class="row"><button class="btn sm" id="addPt">+ Add point</button><button class="btn sm" id="resetQuad">Reset to rect</button></div>
-        <div>${L.points.map((p, n) => `<div class="kv"><span>P${n + 1}</span><b>${Math.round(p.x)}, ${Math.round(p.y)}</b></div>`).join('')}</div>
+        <details class="drawit"><summary>${L.points.length} points</summary><div>${L.points.map((p, n) => `<div class="kv"><span>P${n + 1}</span><b>${Math.round(p.x)}, ${Math.round(p.y)}</b></div>`).join('')}</div></details>
       </div>
     </div>
     <div class="sect">
@@ -162,7 +167,25 @@ function refreshProps() {
       </div>
     </div>`;
   }
+  /* An opening gets the two things a creator wants up front; the layer and
+     geometry controls are still there, folded under Advanced. */
+  if (L.type === 'frame') {
+    html = `
+    <div class="sect">
+      <h2>Opening</h2>
+      <div class="stack">
+        <div class="note">Drag the blue corner points on the canvas to adjust it.</div>
+        <div class="row">
+          <button class="btn sm primary" id="qPhoto">${L.content ? 'Change photo' : 'Try a photo'}</button>
+          <button class="btn sm danger" id="qDel">Delete opening</button>
+        </div>
+      </div>
+    </div>
+    <details class="moretools"><summary>Advanced</summary>${html}</details>`;
+  }
   box.innerHTML = html;
+  if ($('#qPhoto')) $('#qPhoto').onclick = () => setImageFor(L);
+  if ($('#qDel')) $('#qDel').onclick = () => removeLayer(L.id);
   bindProps(L);
 }
 

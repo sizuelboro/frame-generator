@@ -63,7 +63,7 @@ function render(target, opts) {
         c.fillStyle = '#2783DE';
         c.font = `600 ${Math.max(11, Math.min(15, b.h / 12))}px -apple-system,Segoe UI,Roboto,sans-serif`;
         c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.fillText('Drop image here', b.x + b.w / 2, b.y + b.h / 2);
+        c.fillText('Photo goes here', b.x + b.w / 2, b.y + b.h / 2);
         c.restore();
       }
       if(L.detailOverlayDataUrl){const detail=getImg(L.detailOverlayDataUrl);if(detail)c.drawImage(detail,0,0,doc.canvas.w,doc.canvas.h)}
