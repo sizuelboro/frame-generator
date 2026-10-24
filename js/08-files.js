@@ -160,7 +160,7 @@ function boot() {
   if (!ov) { // lite build: start empty
     doc = { canvas: { w: 1200, h: 800, bg: '#FFFFFF' }, layers: [] };
     sizePill(); setTool('select'); fit(); refreshTpls(); sync();
-    setTimeout(() => toast('Add a mockup overlay, then hit Auto screen'), 700);
+    setTimeout(() => toast('Choose Generate or From image to start'), 700);
     return;
   }
   doc = {
@@ -173,6 +173,10 @@ function boot() {
     ]
   };
   sizePill(); setTool('select'); fit(); refreshTpls(); sync();
-  setTimeout(() => toast('Demo loaded · drop any image onto the screen to swap it'), 700);
+  // The mode chooser covers the demo, and choosing a mode replaces it, so
+  // only hint while the untouched demo is still what is on screen.
+  setTimeout(() => {
+    if (typeof ffIsBootDemo !== 'function' || ffIsBootDemo()) toast('Choose Generate or From image to start');
+  }, 700);
 }
 boot();
