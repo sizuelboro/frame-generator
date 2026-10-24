@@ -43,7 +43,25 @@ the AI round trip, ratio presets and frame designs stay.
   (a photo with no opening) is treated as not found. Rarely used tools are
   folded under **More tools**; the toolbar is just the mode tabs, **More ▾**
   and **Export for Pixopik**. A selected opening shows **Try a photo** and
-  **Delete opening**, with the rest under Advanced.
+  **Delete**, with the rest under Advanced.
+- **Redesign in Pixopik's palette.** One design system in `index.html`
+  (Pixopik's ink, paper and violet accent as CSS tokens) and one SVG icon set
+  used across the toolbar, steps, menus and dialogs. The export step is
+  sticky at the bottom of the left panel, so it never scrolls out of view;
+  the style grid is three compact columns; shape chips show their own
+  proportions.
+- **Inspector.** The right panel shows a live **Preview in Pixopik** (the
+  overlay cropped like the export, with Pixopik's sky placeholder in the
+  opening), a **Status** list (mode, artwork, opening, aspect, export
+  readiness) and the next step. Canvas settings are folded away. A selected
+  opening keeps the preview above its controls. `js/06-properties.js`.
+- **Canvas looks like Pixopik.** An empty opening is drawn with Pixopik's
+  sky-and-hills placeholder instead of a blue box (editor only, never
+  exported), and corner handles are small round points instead of large
+  squares. The grab area is unchanged. `js/04-render.js`.
+- **One dialog style.** Prompts, confirms, number fields, the AI scene picker
+  and the download card all use the shared `.dlg` classes instead of their own
+  inline colours. `js/10-dialogs.js`, `js/12-silhouette.js`, `js/15-download.js`.
 - **9:16 ratio preset**, for story and widescreen frames.
 - **`PIXOPIK_*` limits** in `shared/frameforge-limits.js`.
 - **`test:pixopik`**: a browser suite that drives the real `index.html`.

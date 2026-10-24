@@ -161,6 +161,7 @@ async function ffAutoDetect(L) {
   _ffTried.add(L.id);
   ffDetect = 'running';
   ffSyncSteps();
+  if (!sel) refreshProps();
   const before = { src: L.src, name: L.name, ids: new Set(doc.layers.map(l => l.id)) };
   let ok = false;
   try { ok = await autoHoleApply(L); } catch (e) { ok = false; }
@@ -180,6 +181,8 @@ async function ffAutoDetect(L) {
   // nothing selected: the canvas shows the frame, not a crowd of handles
   if (ok) { sel = null; sync(); }
   ffSyncSteps();
+  // the inspector's status line said "Finding..." while this ran
+  if (!sel) refreshProps();
   if (!ok) toast('No transparent opening found \u00b7 click inside the opening instead');
 }
 
@@ -397,7 +400,17 @@ function ffGenRenderPanel() {
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', ffGen.ratioId === id ? 'true' : 'false');
       b.dataset.shape = id;
-      b.textContent = ffRatioFamilyLabel(id, ffGen.orientation);
+      // a little rectangle in the chip's own proportions, so 4:5 and 2:3
+      // can be told apart at a glance
+      const [a, c] = id.split('-').map(Number);
+      const land = ffGen.orientation === 'landscape' && a !== c;
+      const r = land ? c / a : a / c;
+      const sw = document.createElement('span');
+      sw.className = 'ratio';
+      sw.style.width = Math.round(r >= 1 ? 13 : 13 * r) + 'px';
+      sw.style.height = Math.round(r >= 1 ? 13 / r : 13) + 'px';
+      b.appendChild(sw);
+      b.appendChild(document.createTextNode(ffRatioFamilyLabel(id, ffGen.orientation)));
       b.onclick = () => { ffGen.ratioId = id; ffGenerate(); ffGenRenderPanel(); };
       shapes.appendChild(b);
     });
@@ -405,7 +418,8 @@ function ffGenRenderPanel() {
 
   const orient = $('#genOrient');
   if (orient) {
-    orient.textContent = (ffGen.orientation === 'landscape' ? 'Landscape' : 'Portrait') + ' \u21c5';
+    orient.innerHTML = '<svg class="ic"><use href="#i-orient"/></svg>' +
+      (ffGen.orientation === 'landscape' ? 'Landscape' : 'Portrait');
     orient.disabled = ffGen.ratioId === '1-1';
     orient.title = ffGen.ratioId === '1-1' ? 'A square reads the same either way' : 'Switch portrait / landscape';
   }
@@ -426,7 +440,8 @@ function ffGenRenderPanel() {
         b.appendChild(img);
       } else {
         const up = document.createElement('span');
-        up.className = 'up'; up.textContent = '+';
+        up.className = 'up';
+        up.innerHTML = '<svg class="ic"><use href="#i-upload"/></svg>';
         b.appendChild(up);
       }
       const t = document.createElement('span');

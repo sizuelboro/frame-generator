@@ -379,6 +379,60 @@ async function testSteps() {
   chk('no script errors in the steps', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
 }
 
+function px(canvas, fx, fy) {
+  return canvas.getContext('2d').getImageData(Math.round(canvas.width * fx), Math.round(canvas.height * fy), 1, 1).data;
+}
+function isSky(p) { return p[3] === 255 && p[2] > p[0] + 20; }
+
+async function testInspector() {
+  section('13. the inspector previews the frame the way Pixopik shows it');
+  click('#btnNew');
+  await sleep(50);
+  var ok = [].slice.call(D.querySelectorAll('button')).find(function (b) { return b.textContent === 'Start new'; });
+  chk('the confirm dialog uses the shared dialog classes', !!ok && ok.classList.contains('btn') &&
+    !!ok.closest('.dlg') && ok.closest('.dlg').parentNode.classList.contains('dlg-back'));
+  if (ok) ok.click();
+  await sleep(50);
+  chk('nothing to preview on an empty canvas', !!D.querySelector('#liveSlot .liveempty') || await until(function () {
+    return !!D.querySelector('#liveSlot .liveempty');
+  }, 1000));
+
+  click('[data-choose="generate"]');
+  // New keeps the last shape and style, so pick them explicitly
+  click('[data-shape="1-1"]');
+  click('[data-style="white"]');
+  await sleep(120);
+  await until(function () { var c = $('#livePreview'); return c && c.style.display !== 'none' && c.width > 1; }, 2000);
+  var live = $('#livePreview');
+  chk('a live preview is drawn', !!live && live.width > 1 && live.height > 1);
+  chk('the opening shows Pixopik\'s sky placeholder', !!live && isSky(px(live, 0.5, 0.55)),
+    live ? [].slice.call(px(live, 0.5, 0.55)).join(',') : '');
+  chk('the moulding is drawn over it', !!live && px(live, 0.5, 0.01)[3] === 255);
+  chk('the status reads ready', /Ready/.test($('#right').textContent) && /White moulding/.test($('#right').textContent),
+    $('#right').textContent.replace(/\s+/g, ' ').slice(0, 200));
+  await until(function () { return /square/.test(($('#stShape') || {}).textContent || ''); }, 1000);
+  chk('the aspect of the exported box is named', /1:1 square/.test(($('#stShape') || {}).textContent || ''),
+    ($('#stShape') || {}).textContent);
+  chk('canvas settings are folded away', !!$('#cw') && !$('#cw').closest('details').open);
+
+  var cvs = D.querySelector('#cv');
+  var fr = G("doc.layers.find(function (l) { return l.type === 'frame'; })");
+  var b = G('bbox')(fr.points);
+  var mid = cvs.getContext('2d').getImageData(Math.round(b.x + b.w / 2), Math.round(b.y + b.h * 0.55), 1, 1).data;
+  chk('the editor canvas shows the same sky in an empty opening', isSky(mid), [].slice.call(mid).join(','));
+  var exported = G("exportCanvas({ scale: 1, bg: false })");
+  var em = exported.getContext('2d').getImageData(Math.round(b.x + b.w / 2), Math.round(b.y + b.h * 0.55), 1, 1).data;
+  chk('the sky is editor-only, never exported', em[3] === 0, 'alpha=' + em[3]);
+
+  G("sel = doc.layers.find(function (l) { return l.type === 'frame'; }).id; sync()");
+  await sleep(150);
+  chk('selecting the opening keeps the preview', !!$('#liveSlot') && $('#livePreview') === live && shown('#qPhoto'));
+  G('sel = null; sync()');
+
+  chk('the export step is sticky, so it never scrolls away', W.getComputedStyle($('#stepExport')).position === 'sticky');
+  chk('no script errors in the inspector', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
+}
+
 async function run() {
   try {
     await testModes();
@@ -387,6 +441,7 @@ async function run() {
     await testDialog();
     await testNewAndImage();
     await testSteps();
+    await testInspector();
   } catch (error) {
     chk('suite completed without throwing', false, error && (error.stack || error.message));
   }

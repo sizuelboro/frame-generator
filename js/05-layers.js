@@ -173,8 +173,8 @@ function previewCreate() {
   const a = drag.start, b = drag.cur;
   ctx.save();
   ctx.scale(zoom, zoom);
-  ctx.setLineDash([6, 4]); ctx.lineWidth = 1.6 / zoom; ctx.strokeStyle = '#2783DE';
-  ctx.fillStyle = 'rgba(39,131,222,.08)';
+  ctx.setLineDash([6 / zoom, 4 / zoom]); ctx.lineWidth = 1.5 / zoom; ctx.strokeStyle = FF_UI.accent;
+  ctx.fillStyle = 'rgba(81,70,216,.08)';
   const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
   ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
   ctx.restore();
@@ -212,7 +212,7 @@ function setTool(t) {
   const names = { select: 'Select', frameRect: 'Rect frame', framePersp: 'Perspective frame', text: 'Text', shape: 'Shape' };
   $('#modePill').textContent = names[t] || 'Select';
   $('#stageMsg').textContent = t === 'select'
-    ? 'Drag a blue corner to adjust an opening \u00b7 double-click an opening to try a photo'
+    ? 'Drag a corner point to adjust an opening \u00b7 double-click an opening to try a photo'
     : (t === 'text' || t === 'shape' ? 'Click on the canvas to place it' : 'Drag on the canvas to draw the frame');
   cv.style.cursor = t === 'select' ? 'default' : 'crosshair';
 }

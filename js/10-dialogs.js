@@ -12,36 +12,47 @@
    silently block window.confirm / window.prompt, which made buttons look dead.
    These modals are plain DOM, so they always work. */
 
+/* Every dialog uses the design system's .dlg classes from index.html.
+   The backdrop also keeps an inline position:fixed: the suites find the
+   open card by it, and it still covers the page if the stylesheet is not
+   there (the test pages carry their own CSS). */
+function uiBackdrop() {
+  const back = document.createElement('div');
+  back.className = 'dlg-back';
+  back.style.position = 'fixed';
+  return back;
+}
+function uiButton(label, primary, type) {
+  const b = document.createElement('button');
+  b.type = type || 'button';
+  b.className = 'btn' + (primary ? ' primary' : '');
+  b.textContent = label;
+  return b;
+}
+function uiEl(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text != null) el.textContent = text;
+  return el;
+}
+
 function uiModal(opts) {
   return new Promise((resolve) => {
-    const back = document.createElement('div');
-    back.style.cssText = 'position:fixed;inset:0;background:rgba(15,17,21,.45);z-index:9999;display:flex;align-items:center;justify-content:center;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    const card = document.createElement('div');
-    card.style.cssText = 'background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:18px;width:340px;max-width:calc(100vw - 32px)';
-    const h = document.createElement('div');
-    h.style.cssText = 'font-weight:600;font-size:14px;color:#16181d;margin-bottom:6px';
-    h.textContent = opts.title || '';
-    const sub = document.createElement('div');
-    sub.style.cssText = 'color:#6b7280;margin-bottom:14px';
-    sub.textContent = opts.message || '';
+    const back = uiBackdrop();
+    const card = uiEl('div', 'dlg sm');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.appendChild(uiEl('div', 'dlg-title', opts.title || ''));
+    if (opts.message) card.appendChild(uiEl('div', 'dlg-sub', opts.message));
     const input = document.createElement('input');
     if (opts.input) {
+      input.className = 'inp';
       input.value = opts.value == null ? '' : String(opts.value);
-      input.style.cssText = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d9dce1;border-radius:8px;font:inherit;margin-bottom:14px;outline:none';
-      input.onfocus = () => { input.style.borderColor = '#2f6fed'; };
-      input.onblur = () => { input.style.borderColor = '#d9dce1'; };
+      card.appendChild(input);
     }
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
-    const mk = (label, primary) => {
-      const b = document.createElement('button');
-      b.textContent = label;
-      b.style.cssText = 'padding:7px 14px;border-radius:8px;font:inherit;font-weight:500;cursor:pointer;border:1px solid ' +
-        (primary ? '#2f6fed;background:#2f6fed;color:#fff' : '#d9dce1;background:#fff;color:#2b2f36');
-      return b;
-    };
-    const cancel = mk(opts.cancelLabel || 'Cancel', false);
-    const ok = mk(opts.confirmLabel || 'OK', true);
+    const row = uiEl('div', 'dlg-acts');
+    const cancel = uiButton(opts.cancelLabel || 'Cancel', false);
+    const ok = uiButton(opts.confirmLabel || 'OK', true);
     const done = (v) => { document.removeEventListener('keydown', onKey, true); back.remove(); resolve(v); };
     const onKey = (e) => {
       if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); done(null); }
@@ -50,9 +61,6 @@ function uiModal(opts) {
     cancel.onclick = () => done(null);
     ok.onclick = () => done(opts.input ? input.value : true);
     back.onmousedown = (e) => { if (e.target === back) done(null); };
-    card.appendChild(h);
-    if (opts.message) card.appendChild(sub);
-    if (opts.input) card.appendChild(input);
     row.appendChild(cancel); row.appendChild(ok);
     card.appendChild(row);
     back.appendChild(card);
@@ -77,40 +85,30 @@ function uiModal(opts) {
 function uiForm(opts) {
   return new Promise((resolve) => {
     const fields = (opts.fields || []).map((f) => ({ ...f }));
-    const back = document.createElement('div');
-    back.style.cssText = 'position:fixed;inset:0;background:rgba(15,17,21,.45);z-index:9999;display:flex;align-items:center;justify-content:center;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    const card = document.createElement('form');
+    const back = uiBackdrop();
+    const card = uiEl('form', 'dlg');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
     // Use our own validation only. With native constraint validation on, the
     // browser silently blocks the submit event for an out-of-range number, so
     // our inline error never rendered and the dialog just looked stuck.
     card.noValidate = true;
-    card.style.cssText = 'background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:18px;width:380px;max-width:calc(100vw - 32px);display:grid;gap:12px';
 
-    const h = document.createElement('div');
-    h.style.cssText = 'font-weight:600;font-size:14px;color:#16181d';
-    h.textContent = opts.title || '';
-    card.appendChild(h);
+    card.appendChild(uiEl('div', 'dlg-title', opts.title || ''));
+    if (opts.message) card.appendChild(uiEl('div', 'dlg-sub', opts.message));
 
-    if (opts.message) {
-      const sub = document.createElement('div');
-      sub.style.cssText = 'color:#6b7280;margin-top:-6px';
-      sub.textContent = opts.message;
-      card.appendChild(sub);
-    }
-
-    const error = document.createElement('div');
-    error.style.cssText = 'display:none;padding:7px 9px;border-radius:7px;background:#FCE9E7;color:#8d2b20;font-size:12px';
+    const error = uiEl('div', 'dlg-err');
+    error.style.display = 'none';
     error.setAttribute('role', 'alert');
     card.appendChild(error);
 
     const timers = [];
     const inputs = [];
     fields.forEach((f, index) => {
-      const wrap = document.createElement('label');
-      wrap.style.cssText = 'display:grid;gap:4px;font-size:12px;font-weight:600;color:#2b2f36';
-      wrap.textContent = f.label || f.name;
+      const wrap = uiEl('label', 'dlg-field', f.label || f.name);
 
       const input = document.createElement('input');
+      input.className = 'inp';
       input.type = f.type || 'text';
       input.value = f.value == null ? '' : String(f.value);
       if (f.placeholder) input.placeholder = f.placeholder;
@@ -118,24 +116,15 @@ function uiForm(opts) {
       if (f.min != null) input.min = String(f.min);
       if (f.max != null) input.max = String(f.max);
       if (f.step != null) input.step = String(f.step);
-      input.style.cssText = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d9dce1;border-radius:8px;font:inherit;font-weight:400;outline:none';
-      input.onfocus = () => { input.style.borderColor = '#2f6fed'; };
-      input.onblur = () => { input.style.borderColor = '#d9dce1'; };
       wrap.appendChild(input);
 
-      if (f.hint) {
-        const hint = document.createElement('span');
-        hint.style.cssText = 'color:#7D7A75;font-size:11px;font-weight:400';
-        hint.textContent = f.hint;
-        wrap.appendChild(hint);
-      }
+      if (f.hint) wrap.appendChild(uiEl('span', 'dlg-hint', f.hint));
 
       if (typeof f.liveHint === 'function') {
-        const live = document.createElement('span');
-        live.style.cssText = 'font-size:11px;font-weight:400;min-height:15px';
+        const live = uiEl('span', 'dlg-live');
         live.setAttribute('aria-live', 'polite');
         wrap.appendChild(live);
-        const tones = { ok: '#1f6f43', warn: '#8a5a00', error: '#8d2b20' };
+        const tones = { ok: '#21704a', warn: '#94561d', error: '#8d2b20' };
         let run = 0;
         // Only the newest answer may paint: an async check that resolves late
         // would otherwise describe a name the user has already edited away.
@@ -159,18 +148,9 @@ function uiForm(opts) {
       if (index === 0) setTimeout(() => { input.focus(); input.select(); }, 0);
     });
 
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:2px';
-    const mk = (label, primary, type) => {
-      const b = document.createElement('button');
-      b.type = type || 'button';
-      b.textContent = label;
-      b.style.cssText = 'padding:7px 14px;border-radius:8px;font:inherit;font-weight:500;cursor:pointer;border:1px solid ' +
-        (primary ? '#2f6fed;background:#2f6fed;color:#fff' : '#d9dce1;background:#fff;color:#2b2f36');
-      return b;
-    };
-    const cancel = mk(opts.cancelLabel || 'Cancel', false);
-    const ok = mk(opts.confirmLabel || 'Save', true, 'submit');
+    const row = uiEl('div', 'dlg-acts');
+    const cancel = uiButton(opts.cancelLabel || 'Cancel', false);
+    const ok = uiButton(opts.confirmLabel || 'Save', true, 'submit');
     row.appendChild(cancel); row.appendChild(ok);
     card.appendChild(row);
 

@@ -111,8 +111,8 @@ which is exactly how a "US Letter" opening (0.773) ends up sold as A4 (0.707).
 2. If it was not found, click **inside the opening** on the canvas. A white
    opening can be made transparent from the same step, and **Draw it
    myself** offers a rectangle or four corners. To adjust a found opening,
-   drag its blue corner points.
-3. Optionally **Try with a photo**, then **Export for Pixopik**.
+   drag its round corner points.
+3. **Export for Pixopik**, optionally after **Try it with a photo first**.
 
 ## Export for Pixopik
 

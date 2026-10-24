@@ -3,240 +3,268 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>FrameForge — Mockup Frame Studio</title>
+<title>FrameForge — Frame studio for Pixopik</title>
 <style>
+/* =========================================================================
+   Design system
+   -------------------------------------------------------------------------
+   One palette, taken from Pixopik so a frame made here looks at home in
+   Elements -> Frames. Every colour below is a token; the JS-built dialogs
+   (10-dialogs.js, 12-silhouette.js, 15-download.js, 23-pixopik-export.js)
+   use the same classes instead of their own inline colours.
+   ========================================================================= */
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --text:#2C2C2B; --text2:#7D7A75; --canvas:#FFFFFF; --soft:#F9F8F7; --soft2:#F0EFED;
-  --border:#E6E5E3; --blue:#2783DE; --blue-soft:#E5F2FC; --green:#46A171; --green-soft:#E8F1EC;
-  --orange:#D5803B; --orange-soft:#FBEBDE; --red:#E56458; --red-soft:#FCE9E7;
+  --ink:#232334; --ink2:#626277; --ink3:#9a98ab;
+  --paper:#faf9f6; --card:#ffffff; --soft:#f5f4f8; --soft2:#eeedf3;
+  --line:#e5e2ed; --line2:#d6d2e2;
+  --accent:#5146d8; --accent-hover:#453ab8; --accent-soft:#eeeafb; --accent-line:#d5cffa;
+  --green:#2f9461; --green-soft:#e6f4ec;
+  --orange:#c7772f; --orange-soft:#fbeedd;
+  --red:#d6493d; --red-soft:#fce9e7;
+  --r-sm:7px; --r:10px; --r-lg:14px;
+  --sh-1:0 1px 2px rgba(35,35,52,.06);
+  --sh-2:0 1px 2px rgba(35,35,52,.05),0 8px 24px -6px rgba(35,35,52,.12);
+  --sh-3:0 24px 60px -12px rgba(35,35,52,.35);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 html,body{height:100%}
-body{
-  font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  color:var(--text); background:var(--soft); overflow:hidden;
-}
-button,input,select{font:inherit;color:inherit}
+body{font:14px/1.5 var(--font);color:var(--ink);background:var(--paper);overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:none}
+button:disabled{cursor:not-allowed}
+.hidden{display:none!important}
+.ic{width:16px;height:16px;flex:0 0 16px;display:block;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.ic.lg{width:20px;height:20px;flex-basis:20px}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:0 13px;
+  border:1px solid var(--line);border-radius:var(--r-sm);background:var(--card);color:var(--ink);
+  font-size:13px;font-weight:550;white-space:nowrap;text-decoration:none;
+  transition:background .12s,border-color .12s,box-shadow .12s,color .12s;
+}
+.btn:hover{background:var(--soft);border-color:var(--line2)}
+.btn:focus-visible,.tool:focus-visible,.chip:focus-visible,.style:focus-visible,.link:focus-visible,.iconbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 6px 16px -8px rgba(81,70,216,.7)}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--soft2)}
+.btn.sm{min-height:28px;padding:0 10px;font-size:12.5px;border-radius:6px;gap:5px}
+.btn.danger{color:var(--red)}
+.btn.danger:hover{background:var(--red-soft);border-color:#f3c9c4}
+.btn[disabled]{opacity:.45}
+.btn.icon{width:30px;padding:0;min-height:30px}
 
 /* ---------- shell ---------- */
 .app{display:flex;flex-direction:column;height:100vh}
 .topbar{
-  display:flex;align-items:center;gap:12px;padding:10px 16px;
-  background:var(--canvas);border-bottom:1px solid var(--border);flex:0 0 auto;flex-wrap:wrap;
+  display:flex;align-items:center;gap:14px;height:56px;padding:0 14px 0 16px;flex:0 0 auto;
+  background:var(--card);border-bottom:1px solid var(--line);
 }
-.brand{display:flex;align-items:center;gap:9px;margin-right:4px}
-.logo{width:26px;height:26px;border-radius:7px;background:var(--text);display:grid;place-items:center}
-.logo i{display:block;width:11px;height:8px;border:1.6px solid #fff;border-radius:1.5px}
-.brand h1{font-size:15px;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
-.brand span{font-size:12px;color:var(--text2);white-space:nowrap}
-.sep{width:1px;height:26px;background:var(--border)}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(140deg,#6a5ff0,#4438c4);box-shadow:0 4px 10px -4px rgba(81,70,216,.8)}
+.logo .ic{width:17px;height:17px;stroke-width:2}
+.brand h1{font-size:15px;font-weight:700;letter-spacing:-.015em;line-height:1.1}
+.brand span{display:block;font-size:11.5px;color:var(--ink2);line-height:1.2}
+.sep{width:1px;height:24px;background:var(--line)}
 .spacer{flex:1 1 auto}
+.grp{display:flex;align-items:center;gap:8px}
 
-.btn{
-  display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;
-  border:1px solid var(--border);border-radius:8px;background:var(--canvas);
-  font-size:13.5px;font-weight:500;white-space:nowrap;transition:background .12s,border-color .12s;
+.modeswitch{display:inline-flex;padding:3px;border-radius:10px;background:var(--soft2);gap:2px}
+.modetab{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 13px;border-radius:8px;font-size:13px;font-weight:600;color:var(--ink2)}
+.modetab .ic{width:15px;height:15px}
+.modetab:hover{color:var(--ink)}
+.modetab[aria-selected="true"]{background:var(--card);color:var(--accent);box-shadow:var(--sh-1),0 0 0 1px var(--line)}
+.modetab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* ---------- menus ---------- */
+.menuwrap{position:relative;display:inline-flex}
+.menu{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:500;min-width:252px;
+  display:none;flex-direction:column;gap:1px;padding:6px;
+  background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-2);
 }
-.btn:hover{background:var(--soft2)}
-.btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
-.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
-.btn.primary:hover{background:#1f72c4}
-.btn.ghost{border-color:transparent;background:transparent}
-.btn.ghost:hover{background:var(--soft2)}
-.btn.sm{min-height:28px;padding:0 9px;font-size:12.5px;border-radius:7px}
-.btn.danger{color:var(--red)}
-.btn.danger:hover{background:var(--red-soft)}
+.menu.open{display:flex}
+.menu.left{left:0;right:auto}
+.menu .btn,.menu .setting{width:100%;justify-content:flex-start;border-color:transparent;background:transparent;min-height:32px;font-weight:500;border-radius:7px;padding:0 10px}
+.menu .btn:hover,.menu .setting:hover{background:var(--soft)}
+.menu .btn .ic{color:var(--ink2)}
+.menu h3{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);padding:10px 10px 4px}
+.menu h3:first-child{padding-top:4px}
+.menu hr{border:none;border-top:1px solid var(--line);margin:4px 2px}
+.setting{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.menu .setting{padding-left:33px}
+.caret{width:12px;height:12px;flex-basis:12px;color:var(--ink3)}
 
 .body{display:flex;flex:1 1 auto;min-height:0}
 
-/* ---------- panels ---------- */
-.panel{
-  width:264px;flex:0 0 264px;background:var(--canvas);display:flex;flex-direction:column;
-  min-height:0;overflow-y:auto;
-}
-.panel.left{border-right:1px solid var(--border)}
-.panel.right{border-left:1px solid var(--border);width:290px;flex-basis:290px}
-.sect{padding:16px;border-bottom:1px solid var(--border)}
+/* ---------- side panels ---------- */
+.panel{background:var(--card);display:flex;flex-direction:column;min-height:0;overflow-y:auto;scrollbar-width:thin}
+.panel.left{width:300px;flex:0 0 300px;border-right:1px solid var(--line)}
+.panel.right{width:304px;flex:0 0 304px;border-left:1px solid var(--line)}
+.sect{padding:16px;border-bottom:1px solid var(--line)}
 .sect:last-child{border-bottom:none}
-.sect h2{
-  font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;
-  color:var(--text2);margin-bottom:12px;
+.sect h2,.insp h2{
+  display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink3);margin-bottom:11px;
 }
+.sect h2 .val,.insp h2 .val{margin-left:auto;text-transform:none;letter-spacing:0}
 .stack{display:flex;flex-direction:column;gap:7px}
 .row{display:flex;gap:7px}
 .row>*{flex:1 1 0;min-width:0}
 
 .tool{
-  display:flex;align-items:center;gap:9px;width:100%;min-height:38px;padding:0 10px;
-  border:1px solid var(--border);border-radius:8px;font-size:13.5px;font-weight:500;text-align:left;
+  display:flex;align-items:center;gap:9px;width:100%;min-height:36px;padding:0 11px;
+  border:1px solid var(--line);border-radius:var(--r-sm);background:var(--card);
+  font-size:13px;font-weight:550;text-align:left;transition:background .12s,border-color .12s;
 }
-.tool:hover{background:var(--soft2)}
-.tool.on{background:var(--blue-soft);border-color:#B9DCF7;color:#1a5d9e}
-.tool .k{
-  margin-left:auto;font-size:10.5px;color:var(--text2);background:var(--soft2);
-  border-radius:4px;padding:1px 5px;font-weight:600;
-}
-.tool.on .k{background:#fff;color:#1a5d9e}
-.ic{width:17px;height:17px;flex:0 0 17px;display:block}
-
-/* ---------- layers ---------- */
-.layers{display:flex;flex-direction:column;gap:4px}
-.layer{
-  display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;
-  border:1px solid transparent;cursor:pointer;
-}
-.layer:hover{background:var(--soft)}
-.layer.on{background:var(--blue-soft);border-color:#B9DCF7}
-.layer .thumb{
-  width:30px;height:30px;flex:0 0 30px;border-radius:6px;border:1px solid var(--border);
-  background:var(--soft2) center/cover no-repeat;display:grid;place-items:center;overflow:hidden;
-}
-.layer .meta{flex:1 1 auto;min-width:0}
-.layer .nm{font-size:13px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.layer .ty{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.layer.dim .nm,.layer.dim .ty{opacity:.45}
-.iconbtn{
-  width:26px;height:26px;flex:0 0 26px;border-radius:6px;display:grid;place-items:center;color:var(--text2);
-}
-.iconbtn:hover{background:var(--soft2);color:var(--text)}
-.iconbtn.act{color:var(--blue)}
-.empty{font-size:12.5px;color:var(--text2);padding:8px 2px;line-height:1.45}
-
-/* ---------- stage ---------- */
-.stage{
-  flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;
-  background:var(--soft);position:relative;
-}
-.stagebar{
-  display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);
-  background:var(--canvas);flex:0 0 auto;font-size:12.5px;color:var(--text2);flex-wrap:wrap;
-}
-.pill{
-  display:inline-flex;align-items:center;gap:5px;background:var(--soft2);border-radius:999px;
-  padding:3px 10px;font-size:11.5px;font-weight:600;color:var(--text);
-}
-.pill.blue{background:var(--blue-soft);color:#1a5d9e}
-.pill.green{background:var(--green-soft);color:#2f7a52}
-.pill.orange{background:var(--orange-soft);color:#a25f24}
-.canvaswrap{
-  flex:1 1 auto;min-height:0;overflow:auto;display:grid;place-items:center;padding:28px;
-}
-.board{
-  position:relative;
-  box-shadow:0 1px 2px rgba(0,0,0,.05),0 6px 18px rgba(0,0,0,.06);
-  background:#fff;border-radius:2px;
-}
-#cv{display:block;border-radius:2px;touch-action:none}
-.hint{
-  position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
-  background:rgba(44,44,43,.92);color:#fff;font-size:12px;padding:6px 12px;border-radius:999px;
-  pointer-events:none;opacity:0;transition:opacity .18s;white-space:nowrap;max-width:92%;
-}
-.hint.show{opacity:1}
+.tool:hover{background:var(--soft);border-color:var(--line2)}
+.tool .ic{color:var(--ink2)}
+.tool.on{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-hover)}
+.tool.on .ic{color:var(--accent)}
+.tool .k{margin-left:auto;font-size:10.5px;color:var(--ink2);background:var(--soft2);border-radius:4px;padding:1px 6px;font-weight:650}
+.tool.on .k{background:#fff;color:var(--accent-hover)}
+.tool.primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 6px 16px -8px rgba(81,70,216,.7)}
+.tool.primary .ic{color:#fff}
+.tool.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.tool.primary .k{background:rgba(255,255,255,.2);color:#fff}
+.tool.big{min-height:44px;justify-content:center;font-size:14px}
+.row>.tool{padding:0 9px;justify-content:center}
 
 /* ---------- fields ---------- */
 .field{display:flex;flex-direction:column;gap:5px}
-.field label{font-size:11.5px;font-weight:600;color:var(--text2)}
+.field label{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--ink2)}
 .inp{
-  width:100%;min-height:32px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;
-  background:var(--canvas);font-size:13px;
+  width:100%;min-height:32px;padding:5px 10px;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:var(--card);font-size:13px;transition:border-color .12s,box-shadow .12s;
 }
-.inp:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue)}
-input[type=range]{width:100%;accent-color:var(--blue);min-height:28px}
-input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--border);border-radius:7px;background:#fff}
-.val{font-size:11.5px;color:var(--text2);font-variant-numeric:tabular-nums}
-.note{font-size:12px;color:var(--text2);line-height:1.45}
-.kv{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:3px 0}
+.inp:hover{border-color:var(--line2)}
+.inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+textarea.inp{resize:vertical;line-height:1.45}
+input[type=range]{width:100%;accent-color:var(--accent);min-height:26px}
+input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--line);border-radius:var(--r-sm);background:#fff}
+.val{font-size:11.5px;font-weight:600;color:var(--ink2);font-variant-numeric:tabular-nums}
+.note{font-size:12.5px;color:var(--ink2);line-height:1.5}
+.note b{color:var(--ink);font-weight:650}
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:2px 0;font-variant-numeric:tabular-nums}
 .kv b{font-weight:600}
 .chip{
-  display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:7px;
-  padding:4px 8px;font-size:12px;font-weight:550;background:var(--canvas);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:4px 9px;font-size:12.5px;font-weight:600;background:var(--card);transition:background .12s,border-color .12s;
 }
-.chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
-.tpl{
-  display:flex;align-items:center;gap:9px;padding:7px;border:1px solid var(--border);border-radius:8px;
-}
-.tpl .thumb{width:42px;height:30px;flex:0 0 42px;border-radius:5px;border:1px solid var(--border);background:var(--soft2) center/cover no-repeat}
-.tpl .nm{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hidden{display:none!important}
+.chip:hover{background:var(--soft);border-color:var(--line2)}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-hover);box-shadow:0 0 0 1px var(--accent) inset}
+.pill{display:inline-flex;align-items:center;gap:5px;background:var(--soft2);border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:650;color:var(--ink)}
+.pill.blue{background:var(--accent-soft);color:var(--accent-hover)}
+.pill.green{background:var(--green-soft);color:#21704a}
+.pill.orange{background:var(--orange-soft);color:#94561d}
+.link{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-size:12.5px;font-weight:600;padding:2px 0;border-radius:4px}
+.link:hover{color:var(--accent-hover);text-decoration:underline}
+.link .ic{width:14px;height:14px}
 
-/* ---------- toolbar groups ---------- */
-/* The topbar is grouped by workflow stage, not by a flat list of actions:
-   file · print size · detect · state · ship. */
-.grp{display:flex;align-items:center;gap:6px}
+/* ---------- folds (<details>) ---------- */
+.moretools>summary,.fold>summary,.drawit>summary{
+  display:flex;align-items:center;gap:7px;cursor:pointer;list-style:none;user-select:none;
+  font-size:12.5px;font-weight:650;color:var(--ink2);
+}
+.moretools>summary::-webkit-details-marker,.fold>summary::-webkit-details-marker,.drawit>summary::-webkit-details-marker{display:none}
+.moretools>summary::after,.fold>summary::after,.drawit>summary::after{
+  content:"";width:7px;height:7px;margin-left:auto;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;
+  transform:rotate(-45deg);transition:transform .15s;opacity:.7;
+}
+.moretools[open]>summary::after,.fold[open]>summary::after,.drawit[open]>summary::after{transform:rotate(45deg)}
+.moretools>summary:hover,.fold>summary:hover,.drawit>summary:hover{color:var(--ink)}
+.moretools>summary,.fold>summary{padding:14px 16px}
+.moretools[open]>summary,.fold[open]>summary{border-bottom:1px solid var(--line)}
+.moretools>summary .ic,.fold>summary .ic{color:var(--ink3)}
+.drawit>summary{padding:6px 2px 2px}
+.drawit>summary::after{margin-left:4px}
 
-/* Settings are state, not actions, so they must not read as buttons. */
-.setting{
-  display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 11px;
-  border:1px solid transparent;border-radius:999px;background:var(--soft2);
-  font-size:12.5px;font-weight:600;white-space:nowrap;color:var(--text);
-  font-variant-numeric:tabular-nums;
+/* ---------- layers ---------- */
+.layers{display:flex;flex-direction:column;gap:3px}
+.layer{display:flex;align-items:center;gap:9px;padding:6px 7px;border-radius:9px;border:1px solid transparent;cursor:pointer}
+.layer:hover{background:var(--soft)}
+.layer.on{background:var(--accent-soft);border-color:var(--accent-line)}
+.layer .thumb{
+  width:30px;height:30px;flex:0 0 30px;border-radius:7px;border:1px solid var(--line);
+  background:var(--soft) center/cover no-repeat;display:grid;place-items:center;overflow:hidden;
 }
-.setting:hover{background:#E6E4E1}
-.setting:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.layer .meta{flex:1 1 auto;min-width:0}
+.layer .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer .ty{font-size:11px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer.dim .nm,.layer.dim .ty{opacity:.45}
+.iconbtn{width:26px;height:26px;flex:0 0 26px;border-radius:6px;display:grid;place-items:center;color:var(--ink3)}
+.iconbtn:hover{background:var(--soft2);color:var(--ink)}
+.iconbtn.act{color:var(--accent)}
+.empty{font-size:12.5px;color:var(--ink2);padding:8px 2px;line-height:1.45}
+.tpl{display:flex;align-items:center;gap:9px;padding:7px;border:1px solid var(--line);border-radius:9px}
+.tpl .thumb{width:42px;height:30px;flex:0 0 42px;border-radius:5px;border:1px solid var(--line);background:var(--soft) center/cover no-repeat}
+.tpl .nm{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-.menuwrap{position:relative;display:inline-flex}
-.menu{
-  position:absolute;top:calc(100% + 6px);right:0;z-index:500;min-width:224px;
-  display:none;flex-direction:column;gap:1px;padding:6px;
-  background:var(--canvas);border:1px solid var(--border);border-radius:11px;
-  box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 30px rgba(0,0,0,.13);
-}
-.menu.open{display:flex}
-.menu.left{left:0;right:auto}
-.menu .setting{width:100%;justify-content:flex-start}
-.menu .btn{width:100%;justify-content:flex-start;border-color:transparent;background:transparent}
-.menu .btn:hover{background:var(--soft2)}
-.menu h3{
-  font-size:10.5px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;
-  color:var(--text2);padding:9px 10px 4px;
-}
-.menu h3:first-child{padding-top:4px}
-.caret{font-size:9px;color:var(--text2);margin-left:1px}
-
-/* ---------- stage empty state ---------- */
-.canvaswrap{position:relative}
-.estate{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:24px;pointer-events:none}
-.estate.gone{display:none}
-.ecard{
-  max-width:438px;text-align:center;pointer-events:auto;
-  background:rgba(255,255,255,.94);border:1px solid var(--border);border-radius:14px;
-  padding:26px 24px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px rgba(0,0,0,.07);
-}
-.ecard .eic{width:38px;height:38px;margin:0 auto 13px;display:block;color:var(--text2)}
-.ecard h3{font-size:16.5px;font-weight:650;letter-spacing:-.01em;margin-bottom:7px}
-.ecard p{font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:17px}
-.ecard .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
-.ecard .tip{margin-top:15px;font-size:11.5px;color:var(--text2)}
-.ecard .tip b{background:var(--soft2);border-radius:4px;padding:1px 5px;font-weight:600}
 /* ---------- guided steps ---------- */
-.step{padding:16px;border-bottom:1px solid var(--border)}
-.step h2{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin-bottom:11px;color:var(--text)}
-.step h2 .val{margin-left:auto;font-weight:600}
-.step .num{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:700;background:var(--blue);color:#fff;flex:0 0 21px}
-.step[data-step="done"] .num{background:var(--green)}
-.step[data-step="wait"]{opacity:.5}
-.step[data-step="wait"] .num{background:var(--text2)}
+/* A step is wait (greyed), on (do this now) or done (ticked). 22-modes.js
+   works the state out from the document and writes it to data-step. */
+.steps{display:flex;flex-direction:column;flex:1 0 auto}
+.step{position:relative;padding:16px 16px 16px 50px;border-bottom:1px solid var(--line)}
+.step h2{display:flex;align-items:center;gap:8px;min-height:22px;font-size:13.5px;font-weight:650;letter-spacing:-.005em;margin-bottom:11px;color:var(--ink)}
+.step h2 .val,.step h2 .btn{margin-left:auto}
+.step .num{
+  position:absolute;left:16px;top:16px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  font-size:11.5px;font-weight:700;background:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-soft);
+}
+.step[data-step="done"] .num{background:var(--green);box-shadow:0 0 0 4px var(--green-soft);font-size:0}
+.step[data-step="done"] .num::after{content:"";width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:translateY(-1px) rotate(-45deg)}
+.step[data-step="wait"] h2{color:var(--ink3);margin-bottom:2px}
+.step[data-step="wait"] .num{background:var(--soft2);color:var(--ink3);box-shadow:none}
 .step .todo,.step .done,.step .wait{display:none}
 .step[data-step="on"] .todo,.step[data-step="done"] .done,.step[data-step="wait"] .wait{display:block}
 .step[data-step="done"] h2{margin-bottom:6px}
-.doneline{display:flex;gap:7px;align-items:center;font-size:13px;font-weight:550;margin-bottom:4px}
-.doneline i{font-style:normal;color:var(--green);font-weight:700}
+.step .wait.note{color:var(--ink3);font-size:12px}
+.doneline{display:flex;gap:7px;align-items:center;font-size:13px;font-weight:600;margin-bottom:3px}
 .doneline span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.link{color:var(--blue);font-size:12.5px;font-weight:550;padding:2px 0}
-.link:hover{text-decoration:underline}
-.tool.big{min-height:46px;justify-content:center;font-size:14px}
-.step .note{margin:6px 0 2px}
-#openingStatus{margin:0 0 9px}
-#openingStatus.bad{color:#a25f24}
-.drawit summary,.moretools>summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text2);list-style:none}
-.drawit summary::before,.moretools>summary::before{content:"\25B8  "}
-.drawit[open] summary::before,.moretools[open]>summary::before{content:"\25BE  "}
-.moretools>summary{padding:14px 16px}
-.moretools[open]>summary{border-bottom:1px solid var(--border)}
+.step .note{margin:7px 0 2px}
+#openingStatus{display:flex;gap:7px;align-items:flex-start;margin:0 0 10px;color:var(--ink2)}
+#openingStatus::before{content:"";flex:0 0 7px;height:7px;margin-top:6px;border-radius:50%;background:var(--accent)}
+#openingStatus.bad{color:#94561d}
+#openingStatus.bad::before{background:var(--orange)}
+
+/* The export step is the goal of both modes, so it never scrolls away. */
+#stepExport{position:sticky;bottom:0;z-index:2;margin-top:auto;background:var(--card);border-top:1px solid var(--line);border-bottom:none;box-shadow:0 -8px 18px -14px rgba(35,35,52,.35)}
+#stepExport[data-step="wait"]{background:var(--paper)}
+
+.moretools{border-bottom:1px solid var(--line)}
+.moretools .sect h2{margin-bottom:9px}
 .moretools [data-only]{display:none}
 body[data-mode="image"] .moretools [data-only~="image"]{display:flex}
+
+/* ---------- Generate panel ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips .chip{min-height:32px;padding:0 10px 0 8px;cursor:pointer}
+.chip .ratio{display:inline-block;border:1.5px solid currentColor;border-radius:2px;opacity:.75}
+.chip.on .ratio{opacity:1}
+.styles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.style{
+  display:flex;flex-direction:column;align-items:center;gap:4px;padding:5px 3px 4px;min-width:0;
+  border:1px solid var(--line);border-radius:9px;font-size:10.5px;font-weight:600;color:var(--ink2);line-height:1.2;
+  transition:background .12s,border-color .12s;
+}
+.style>span:last-child{max-width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.style:hover{background:var(--soft);border-color:var(--line2);color:var(--ink)}
+.style.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset;background:var(--accent-soft);color:var(--accent-hover)}
+.style img,.style .up{width:44px;height:44px;border-radius:4px;display:block}
+.style .up{display:grid;place-items:center;border:1.5px dashed var(--line2);color:var(--ink3)}
+.style .up .ic{width:18px;height:18px}
+.rangewrap{display:flex;align-items:center;gap:10px}
+.rangewrap .ic{color:var(--ink3);width:14px;height:14px;flex-basis:14px}
+
+.trylink{margin-top:9px}
+.pickfirst{display:none;flex-direction:column;align-items:center;gap:6px;margin:40px 24px;text-align:center;font-size:12.5px;color:var(--ink2)}
+.pickfirst b{font-size:13.5px;color:var(--ink)}
+.pickfirst .eic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--soft);color:var(--ink3);margin-bottom:4px}
+body:not([data-mode="generate"]):not([data-mode="image"]) .pickfirst{display:flex}
 
 /* ---------- modes ---------- */
 /* A panel section names the modes it belongs to; the body names the mode
@@ -245,93 +273,212 @@ body[data-mode="image"] .moretools [data-only~="image"]{display:flex}
 body[data-mode="generate"] [data-only~="generate"],
 body[data-mode="image"] [data-only~="image"]{display:block}
 
-.modeswitch{display:inline-flex;padding:3px;border-radius:10px;background:var(--soft2);gap:2px}
-.modetab{min-height:30px;padding:0 13px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text2)}
-.modetab:hover{color:var(--text)}
-.modetab[aria-selected="true"]{background:var(--canvas);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.modetab:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
-
-.tool.primary{background:var(--blue);border-color:var(--blue);color:#fff}
-.tool.primary:hover{background:#1f72c4}
-.tool.primary .k{background:rgba(255,255,255,.2);color:#fff}
-.row>.tool{padding:0 8px}
-
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chips .chip{min-height:30px;padding:0 11px;cursor:pointer}
-.styles{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-.style{
-  display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px 5px;
-  border:1px solid var(--border);border-radius:9px;font-size:11px;font-weight:550;color:var(--text);
-  line-height:1.2;text-align:center;
+/* ---------- stage ---------- */
+.stage{flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;position:relative;
+  background:radial-gradient(circle,#dcd8e6 1px,transparent 1.2px) 0 0/18px 18px,var(--paper)}
+.stagebar{
+  display:flex;align-items:center;gap:8px;height:44px;padding:0 12px 0 14px;flex:0 0 auto;
+  border-bottom:1px solid var(--line);background:rgba(255,255,255,.9);backdrop-filter:blur(6px);
+  font-size:12.5px;color:var(--ink2);
 }
-.style:hover{background:var(--soft)}
-.style.on{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue);background:var(--blue-soft)}
-.style img,.style .up{width:52px;height:52px;border-radius:4px;display:block}
-.style .up{display:grid;place-items:center;border:1.5px dashed var(--border);color:var(--text2);font-size:20px}
+#stageMsg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.zoom{display:inline-flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--line);border-radius:9px;background:var(--card)}
+.zoom .btn{border-color:transparent;min-height:26px;padding:0 7px}
+.zoom .btn:hover{background:var(--soft2)}
+.zoom .val{min-width:44px;text-align:center}
+.canvaswrap{position:relative;flex:1 1 auto;min-height:0;overflow:auto;display:grid;place-items:center;padding:32px}
+.board{position:relative;background:#fff;border-radius:3px;box-shadow:0 0 0 1px rgba(35,35,52,.06),0 12px 40px -12px rgba(35,35,52,.22)}
+#cv{display:block;border-radius:3px;touch-action:none}
+.hint{
+  position:absolute;left:50%;bottom:14px;transform:translate(-50%,4px);
+  background:rgba(35,35,52,.94);color:#fff;font-size:12px;font-weight:500;padding:7px 14px;border-radius:999px;
+  pointer-events:none;opacity:0;transition:opacity .18s,transform .18s;white-space:nowrap;max-width:92%;
+  overflow:hidden;text-overflow:ellipsis;box-shadow:var(--sh-2);
+}
+.hint.show{opacity:1;transform:translate(-50%,0)}
 
-.chooser{position:absolute;inset:0;z-index:6;display:grid;place-items:center;padding:24px;background:rgba(249,248,247,.86)}
+/* ---------- stage overlays: chooser + upload card ---------- */
+.estate{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:24px;pointer-events:none}
+.estate.gone{display:none}
+.ecard{
+  max-width:420px;text-align:center;pointer-events:auto;background:var(--card);
+  border:1.5px dashed var(--line2);border-radius:var(--r-lg);padding:30px 28px;box-shadow:var(--sh-2);
+}
+.ecard .eic{width:46px;height:46px;margin:0 auto 14px;display:grid;place-items:center;border-radius:12px;background:var(--accent-soft);color:var(--accent)}
+.ecard .eic .ic{width:22px;height:22px}
+.ecard h3{font-size:16.5px;font-weight:700;letter-spacing:-.01em;margin-bottom:6px}
+.ecard p{font-size:13px;color:var(--ink2);line-height:1.5;margin-bottom:18px}
+.ecard .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.ecard .tip{margin-top:14px;font-size:11.5px;color:var(--ink3)}
+
+.chooser{position:absolute;inset:0;z-index:6;display:grid;place-items:center;padding:24px;background:rgba(250,249,246,.9);backdrop-filter:blur(2px)}
 .chooser.gone{display:none}
-.ccard{max-width:560px;width:100%;text-align:center}
-.ccard h3{font-size:18px;font-weight:650;letter-spacing:-.01em;margin-bottom:16px}
+.ccard{max-width:600px;width:100%;text-align:center}
+.ccard .eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.ccard h3{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
+.ccard>p{font-size:13.5px;color:var(--ink2);margin-bottom:22px}
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .copt{
-  display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 18px;
-  background:var(--canvas);border:1px solid var(--border);border-radius:14px;
-  box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px rgba(0,0,0,.07);transition:border-color .12s,transform .12s;
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:20px;text-align:left;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-2);
+  transition:border-color .15s,transform .15s,box-shadow .15s;
 }
-.copt:hover{border-color:var(--blue);transform:translateY(-1px)}
-.copt:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
-.copt svg{width:46px;height:46px;color:var(--blue)}
-.copt b{font-size:16px;font-weight:650}
-.copt span{font-size:12.5px;color:var(--text2);line-height:1.45}
+.copt:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 0 0 3px var(--accent-soft),var(--sh-2)}
+.copt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.copt .art{width:100%;height:112px;border-radius:10px;margin-bottom:8px;display:grid;place-items:center;background:var(--soft);color:var(--accent)}
+.copt .art svg{width:86px;height:86px}
+.copt b{font-size:15.5px;font-weight:700}
+.copt span{font-size:12.5px;color:var(--ink2);line-height:1.45}
+.copt .go{display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-size:12.5px;font-weight:650;color:var(--accent)}
+.copt .go .ic{width:14px;height:14px}
+
+/* ---------- right inspector ---------- */
+/* 06-properties.js renders into #right with these classes. */
+.insp{padding:16px;border-bottom:1px solid var(--line)}
+.insp:last-child{border-bottom:none}
+.live{
+  position:relative;display:grid;place-items:center;height:212px;border-radius:12px;border:1px solid var(--line);overflow:hidden;
+  background:repeating-conic-gradient(#efedf3 0 25%,#fff 0 50%) 0 0/14px 14px;
+}
+.live canvas{display:block;max-width:100%;max-height:100%;filter:drop-shadow(0 6px 14px rgba(35,35,52,.18))}
+.live .liveempty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 24px;text-align:center;font-size:12px;color:var(--ink3)}
+.live .liveempty .ic{width:26px;height:26px;color:var(--line2)}
+.livecap{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11.5px;color:var(--ink3)}
+.livecap i{width:10px;height:10px;border-radius:3px;background:linear-gradient(#bcd9ef,#e6f1f8);border:1px solid #cfe0ee;flex:0 0 10px}
+.status{list-style:none;display:flex;flex-direction:column;gap:1px}
+.status li{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12.5px}
+.status li>span{color:var(--ink2)}
+.status li>b{margin-left:auto;font-weight:600;text-align:right;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+.status .dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;background:var(--line2)}
+.status .ok .dot{background:var(--green)}
+.status .warn .dot{background:var(--orange)}
+.status .on .dot{background:var(--accent)}
+.nextcard{display:flex;gap:10px;padding:11px 12px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--accent-line)}
+.nextcard .ic{color:var(--accent);margin-top:2px}
+.nextcard .note{color:var(--ink)}
+.insp .lhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.insp .lhead .lic{width:32px;height:32px;flex:0 0 32px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.insp .lhead b{display:block;font-size:13.5px;font-weight:650;line-height:1.25}
+.insp .lhead small{display:block;font-size:11.5px;color:var(--ink2)}
+.seg{display:flex;padding:2px;border-radius:8px;background:var(--soft2);gap:2px}
+.seg .chip{flex:1 1 0;border-color:transparent;background:transparent;min-height:28px}
+.seg .chip.on{background:var(--card);box-shadow:var(--sh-1);border-color:transparent;color:var(--accent-hover)}
+
+/* ---------- dialogs ---------- */
+/* Shared by every JS-built dialog. The backdrop keeps an inline
+   position:fixed so the suites can find whichever card is open. */
+.dlg-back{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;
+  background:rgba(35,35,52,.42);backdrop-filter:blur(3px);font:13px/1.5 var(--font);color:var(--ink);animation:dlgfade .14s ease-out}
+.dlg{background:var(--card);border-radius:var(--r-lg);box-shadow:var(--sh-3);padding:20px;width:380px;max-width:100%;
+  display:grid;gap:12px;animation:dlgpop .16s ease-out}
+.dlg.sm{width:360px}
+.dlg-title{font-size:15px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
+.dlg-sub{color:var(--ink2);margin-top:-6px}
+.dlg-field{display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--ink2)}
+.dlg-field .inp{font-weight:400;color:var(--ink);min-height:36px}
+.dlg-hint{font-size:11.5px;font-weight:400;color:var(--ink3)}
+.dlg-live{font-size:11.5px;font-weight:500;min-height:16px}
+.dlg-err{display:none;padding:8px 10px;border-radius:8px;background:var(--red-soft);color:#8d2b20;font-size:12px;font-weight:500}
+.dlg-acts{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:4px}
+.dlg-file{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;background:var(--soft);border:1px solid var(--line);
+  font-family:var(--mono);font-size:12px;color:var(--ink);word-break:break-all}
+.dlg-file .ic{color:var(--accent)}
+.dlg-opt{display:grid;gap:2px;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);transition:border-color .12s,background .12s}
+.dlg-opt:hover{border-color:var(--line2);background:var(--soft)}
+.dlg-opt.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent) inset}
+.dlg-opt b{font-weight:650;color:var(--ink)}
+.dlg-opt span{color:var(--ink2);font-size:11.5px}
+@keyframes dlgfade{from{opacity:0}}
+@keyframes dlgpop{from{opacity:0;transform:translateY(6px) scale(.985)}}
 
 /* ---------- Export for Pixopik ---------- */
-.pxback{position:fixed;inset:0;z-index:9990;background:rgba(15,17,21,.45);display:flex;align-items:center;justify-content:center;padding:16px}
-.pxcard{
-  background:var(--canvas);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);
-  width:720px;max-width:100%;max-height:calc(100vh - 32px);overflow:auto;padding:20px;
-}
-.pxcard h3{font-size:15.5px;font-weight:650;margin-bottom:3px}
-.pxcard .sub{font-size:12.5px;color:var(--text2);margin-bottom:16px}
-.pxgrid{display:grid;grid-template-columns:1fr 260px;gap:20px}
-.pxform{display:flex;flex-direction:column;gap:10px}
-.pxform .field input,.pxform .field select{width:100%}
-.pxid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
-.pxprev{
-  width:260px;height:260px;border-radius:10px;border:1px solid var(--border);display:grid;place-items:center;
-  background:repeating-conic-gradient(#eeedeb 0 25%,#fff 0 50%) 0 0/16px 16px;
-}
-.pxprev canvas{max-width:240px;max-height:240px;display:block}
-.pxcap{font-size:11.5px;color:var(--text2);text-align:center;margin-top:6px}
-.pxchecks{list-style:none;display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12.5px}
-.pxchecks li{display:flex;gap:7px;align-items:flex-start;line-height:1.4}
-.pxchecks li i{font-style:normal;font-weight:700;width:14px;flex:0 0 14px;text-align:center}
-.pxchecks li.ok i{color:var(--green)}
-.pxchecks li.warn i{color:var(--orange)}
+.pxback{position:fixed;inset:0;z-index:9990;background:rgba(35,35,52,.42);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;animation:dlgfade .14s ease-out}
+.pxcard{background:var(--card);border-radius:16px;box-shadow:var(--sh-3);width:760px;max-width:100%;max-height:calc(100vh - 32px);overflow:auto;padding:22px;animation:dlgpop .16s ease-out}
+.pxcard h3{font-size:17px;font-weight:700;letter-spacing:-.015em;margin-bottom:3px}
+.pxcard .sub{font-size:12.5px;color:var(--ink2);margin-bottom:18px}
+.pxgrid{display:grid;grid-template-columns:1fr 280px;gap:22px}
+.pxform{display:flex;flex-direction:column;gap:12px}
+.pxform .field input,.pxform .field select{width:100%;min-height:36px}
+.pxid{font-family:var(--mono);font-size:12.5px}
+.pxprev{width:280px;height:280px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;
+  background:repeating-conic-gradient(#efedf3 0 25%,#fff 0 50%) 0 0/16px 16px}
+.pxprev canvas{max-width:256px;max-height:256px;display:block;filter:drop-shadow(0 6px 14px rgba(35,35,52,.18))}
+.pxcap{font-size:11.5px;color:var(--ink3);text-align:center;margin-top:7px}
+.pxchecks{list-style:none;display:flex;flex-direction:column;gap:5px;margin-top:12px;font-size:12px}
+.pxchecks li{display:flex;gap:8px;align-items:flex-start;line-height:1.4;color:var(--ink2)}
+.pxchecks li i{font-style:normal;font-weight:800;font-size:10px;width:16px;height:16px;flex:0 0 16px;border-radius:50%;display:grid;place-items:center;margin-top:1px}
+.pxchecks li.ok i{color:var(--green);background:var(--green-soft)}
+.pxchecks li.warn i{color:var(--orange);background:var(--orange-soft)}
 .pxchecks li.err{color:#8d2b20}
-.pxchecks li.err i{color:var(--red)}
-.pxacts{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:18px}
-.pxacts .grow{flex:1 1 auto;font-size:12px;color:var(--text2)}
-.btn[disabled]{opacity:.45;cursor:not-allowed}
-@media (max-width:720px){.pxgrid{grid-template-columns:1fr}.cgrid{grid-template-columns:1fr}}
+.pxchecks li.err i{color:var(--red);background:var(--red-soft)}
+.pxacts{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.pxacts .grow{flex:1 1 auto;font-size:12px;color:var(--ink2)}
 
+@media (max-width:720px){.pxgrid{grid-template-columns:1fr}.cgrid{grid-template-columns:1fr}.pxprev{width:100%}}
 @media (max-width:1100px){
-  .body{flex-direction:column;overflow-y:auto}
-  .panel,.panel.right{width:100%;flex-basis:auto;border:none;border-bottom:1px solid var(--border)}
+  body{overflow:auto}
+  .app{height:auto;min-height:100vh}
+  .body{flex-direction:column}
+  .panel.left,.panel.right{width:100%;flex-basis:auto;border:none;border-bottom:1px solid var(--line);overflow:visible}
+  #stepExport{position:static}
   .stage{min-height:62vh}
+  .brand span{display:none}
 }
 </style>
-
 </head>
 <body>
+<!-- Icon set: 24px grid, 1.75 stroke, round caps. Use <svg class="ic"><use href="#i-name"/></svg>. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-logo" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+    <symbol id="i-generate" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx=".5"/><path d="M4 4l4 4M20 4l-4 4M20 20l-4-4M4 20l4-4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17.5l4.5-4 3.5 3 2.5-2 4.5 3.5"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4.5M7.5 9L12 4.5 16.5 9"/><path d="M4.5 14.5v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3.5"/></symbol>
+    <symbol id="i-pick" viewBox="0 0 24 24"><path d="M6 4l12 7.5-5.2 1.3L10.2 18z"/><path d="M13 13l4.5 4.5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/></symbol>
+    <symbol id="i-erase" viewBox="0 0 24 24"><path d="M9 19.5h10.5"/><path d="M4.6 13.4l8.8-8.8a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 18.0a2 2 0 0 1-1.4.6H8.4a2 2 0 0 1-1.4-.6l-2.4-2.4a1.6 1.6 0 0 1 0-2.2z"/><path d="M9.5 8.5l6 6"/></symbol>
+    <symbol id="i-rect" viewBox="0 0 24 24"><rect x="4.5" y="6" width="15" height="12" rx="1" stroke-dasharray="3 2.2"/></symbol>
+    <symbol id="i-quad" viewBox="0 0 24 24"><path d="M6 6.5l13-2 -1 14.5-13-1.5z"/><circle cx="6" cy="6.5" r="1.4"/><circle cx="19" cy="4.5" r="1.4"/><circle cx="18" cy="19" r="1.4"/><circle cx="5" cy="17.5" r="1.4"/></symbol>
+    <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 15.5c3-2.5 6-3 9-1s5 1.5 8-.5"/><circle cx="15.5" cy="9.5" r="1.8"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 4v10.5M7.5 10L12 14.5 16.5 10"/><path d="M4.5 15v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18.5" cy="12" r="1.3"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6.5V5h14v1.5M12 5v14M9 19h6"/></symbol>
+    <symbol id="i-shape" viewBox="0 0 24 24"><circle cx="9" cy="9" r="5"/><rect x="11" y="11" width="9" height="9" rx="1.5"/></symbol>
+    <symbol id="i-shadow" viewBox="0 0 24 24"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M19.5 8.5v9a2 2 0 0 1-2 2h-9"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5M3.5 16.5L12 21l8.5-4.5"/></symbol>
+    <symbol id="i-silhouette" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-4 3.6-6 7-6s6.2 2 7 6"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-4-6 4V5.5a1 1 0 0 1 1-1z"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z"/><path d="M14 3.5v5h5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M5.5 4h10l3 3v11.5a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 18.5v-13A1.5 1.5 0 0 1 5.5 4z"/><path d="M8 4v4.5h7V4M8 20v-6h8v6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/></symbol>
+    <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6.5 3v13.5a1 1 0 0 0 1 1H21M3 6.5h13.5a1 1 0 0 1 1 1V21"/></symbol>
+    <symbol id="i-bleed" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M3.5 3.5l2 2M20.5 3.5l-2 2M20.5 20.5l-2-2M3.5 20.5l2-2"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2L5 10.5l5.2-1.8z"/><path d="M18.5 16v4M16.5 18h4"/></symbol>
+    <symbol id="i-psd" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M8 15.5v-7h2.2a2 2 0 0 1 0 4H8M17 9.5a1.6 1.6 0 0 0-1.6-1h-.4a1.5 1.5 0 0 0 0 3h.5a1.5 1.5 0 0 1 0 3H15a1.6 1.6 0 0 1-1.6-1"/></symbol>
+    <symbol id="i-orient" viewBox="0 0 24 24"><rect x="4" y="7" width="9" height="13" rx="1.5"/><path d="M16 4.5a5 5 0 0 1 4 4.5M20 9l1.2-2.3M20 9l-2.4-.8"/></symbol>
+    <symbol id="i-border" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><rect x="8.5" y="8.5" width="7" height="7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.01"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l.8 11.5a1.5 1.5 0 0 0 1.5 1.5h6.4a1.5 1.5 0 0 0 1.5-1.5L17.5 7"/></symbol>
+    <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M6 4l12 7.5-5.2 1.3L10.2 18z"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M19.5 4.5L11 13"/><path d="M17.5 14v4a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5h4"/></symbol>
+  </defs>
+</svg>
+
 <div class="app">
 
   <header class="topbar">
     <div class="brand">
-      <div class="logo"><i></i></div>
+      <div class="logo"><svg class="ic"><use href="#i-logo"/></svg></div>
       <div>
         <h1>FrameForge</h1>
-        <span>Mockup frame studio</span>
+        <span>Frame studio for Pixopik</span>
       </div>
     </div>
 
@@ -340,8 +487,8 @@ body[data-mode="image"] [data-only~="image"]{display:block}
     <!-- Two ways to make a frame. Everything mode-specific lives in the left
          panel as numbered steps, so the toolbar stays almost empty. -->
     <div class="modeswitch" role="tablist" aria-label="How to make the frame">
-      <button class="modetab" role="tab" data-mode-tab="generate" aria-selected="false">Generate</button>
-      <button class="modetab" role="tab" data-mode-tab="image" aria-selected="false">From image</button>
+      <button class="modetab" role="tab" data-mode-tab="generate" aria-selected="false"><svg class="ic"><use href="#i-generate"/></svg>Generate</button>
+      <button class="modetab" role="tab" data-mode-tab="image" aria-selected="false"><svg class="ic"><use href="#i-image"/></svg>From image</button>
     </div>
 
     <div class="spacer"></div>
@@ -349,26 +496,26 @@ body[data-mode="image"] [data-only~="image"]{display:block}
     <!-- Everything most creators never need, in one menu -->
     <div class="grp">
       <div class="menuwrap">
-        <button class="btn" id="btnFileMenu" aria-haspopup="menu" aria-expanded="false">More <span class="caret">&#9662;</span></button>
+        <button class="btn ghost" id="btnFileMenu" aria-haspopup="menu" aria-expanded="false"><svg class="ic"><use href="#i-more"/></svg>More</button>
         <div class="menu" id="menuFile" role="menu">
           <h3>Project</h3>
-          <button class="btn" id="btnNew">New frame</button>
-          <button class="btn" id="btnLoadJson">Open project (.json)</button>
-          <button class="btn" id="btnSaveJson">Save project (.json)</button>
-          <button class="btn" id="btnSaveTpl" title="Keep this mockup in the browser with empty frames, ready for any new artwork">Save as reusable mockup</button>
-          <h3>Canvas <span class="pill" id="sizePill" style="margin-left:4px">1200 &#215; 800</span></h3>
-          <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible artwork and its openings. Export for Pixopik does this for you.">Trim canvas</button>
+          <button class="btn" id="btnNew"><svg class="ic"><use href="#i-file"/></svg>New frame</button>
+          <button class="btn" id="btnLoadJson"><svg class="ic"><use href="#i-folder"/></svg>Open project (.json)</button>
+          <button class="btn" id="btnSaveJson"><svg class="ic"><use href="#i-save"/></svg>Save project (.json)</button>
+          <button class="btn" id="btnSaveTpl" title="Keep this mockup in the browser with empty frames, ready for any new artwork"><svg class="ic"><use href="#i-bookmark"/></svg>Save as reusable mockup</button>
+          <h3>Canvas <span class="pill" id="sizePill" style="margin-left:auto;letter-spacing:0">1200 &#215; 800</span></h3>
+          <button class="btn" id="btnFitCanvas" title="Crop the canvas to the visible artwork and its openings. Export for Pixopik does this for you."><svg class="ic"><use href="#i-crop"/></svg>Trim canvas</button>
           <button class="setting" id="btnOpeningBleed" title="Alpha-aware expansion: hides gaps but stops beneath thin artwork borders">Auto bleed: 6px</button>
           <button class="setting" id="btnShadowStrength" title="Rebuild the selected shadow layer at a new strength (capped so it can never read as a frame border)">Shadow: 35%</button>
           <h3>Other exports</h3>
-          <button class="btn" id="btnExport">Export PNG</button>
-          <button class="btn" id="btnExportOverlay">Export overlay PNG + coordinates</button>
-          <button class="btn" id="btnExportPsd" title="Layered PSD with the opening written as a smart object: the buyer double-clicks one layer and drops their artwork in">Photoshop PSD (.psd)</button>
-          <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt">Export for AI</button>
-          <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
+          <button class="btn" id="btnExport"><svg class="ic"><use href="#i-image"/></svg>Export PNG</button>
+          <button class="btn" id="btnExportOverlay"><svg class="ic"><use href="#i-export"/></svg>Export overlay PNG + coordinates</button>
+          <button class="btn" id="btnExportPsd" title="Layered PSD with the opening written as a smart object: the buyer double-clicks one layer and drops their artwork in"><svg class="ic"><use href="#i-psd"/></svg>Photoshop PSD (.psd)</button>
+          <button class="btn" id="btnSceneExport" title="Export this frame as one ZIP: flat green-keyed PNG plus the ChatGPT prompt"><svg class="ic"><use href="#i-sparkle"/></svg>Export for AI</button>
+          <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area"><svg class="ic"><use href="#i-upload"/></svg>Import AI scene</button>
         </div>
       </div>
-      <button class="btn primary" id="btnExportPixopik" title="One overlay PNG plus a ready-to-paste Pixopik frame entry">Export for Pixopik</button>
+      <button class="btn primary" id="btnExportPixopik" title="One overlay PNG plus a ready-to-paste Pixopik frame entry"><svg class="ic"><use href="#i-export"/></svg>Export for Pixopik</button>
     </div>
   </header>
 
@@ -376,147 +523,164 @@ body[data-mode="image"] [data-only~="image"]{display:block}
 
     <!-- LEFT -->
     <aside class="panel left">
-      <!-- Generate: three choices, then export -->
-      <div class="step" data-only="generate" data-step="on">
-        <h2><span class="num">1</span> Shape</h2>
-        <div class="chips" id="genShapes" role="radiogroup" aria-label="Opening shape"></div>
-        <div class="row" style="margin-top:9px">
-          <button class="btn sm" id="genOrient" title="Portrait or landscape">Portrait &#8645;</button>
+      <div class="steps">
+        <!-- Before a mode is picked the stage asks; the panel just points there -->
+        <div class="pickfirst">
+          <div class="eic"><svg class="ic"><use href="#i-arrow"/></svg></div>
+          <b>Choose how to start</b>
+          <span>Pick Generate or From image on the canvas. The steps for that way appear here.</span>
         </div>
-      </div>
-      <div class="step" data-only="generate" data-step="on">
-        <h2><span class="num">2</span> Style</h2>
-        <div class="styles" id="genStyles" role="radiogroup" aria-label="Frame style"></div>
-      </div>
-      <div class="step" data-only="generate" data-step="on">
-        <h2><span class="num">3</span> Border width <span class="val" id="genBorderVal">7.5%</span></h2>
-        <input type="range" id="genBorder" min="2" max="16" step="0.1" value="7.5" aria-label="Border width, percent of the opening">
-      </div>
-
-      <!-- From image: each step opens once the one before it is done -->
-      <div class="step" data-only="image" id="stepUpload">
-        <h2><span class="num">1</span> Upload your frame</h2>
-        <div class="todo">
-          <button class="tool primary big" id="btnUploadFrame">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
-            Upload frame PNG
-          </button>
-          <div class="note">or drop it on the canvas. Best with a transparent opening.</div>
+        <!-- Generate: three choices, then export -->
+        <div class="step" data-only="generate" data-step="on">
+          <span class="num">1</span>
+          <h2>Shape
+            <button class="btn sm" id="genOrient" title="Portrait or landscape">Portrait</button>
+          </h2>
+          <div class="chips" id="genShapes" role="radiogroup" aria-label="Opening shape"></div>
         </div>
-        <div class="done">
-          <div class="doneline"><i>&#10003;</i><span id="uploadName">Frame image added</span></div>
-          <button class="link" id="btnReplaceFrame">Use a different image</button>
+        <div class="step" data-only="generate" data-step="on">
+          <span class="num">2</span>
+          <h2>Style</h2>
+          <div class="styles" id="genStyles" role="radiogroup" aria-label="Frame style"></div>
         </div>
-      </div>
-
-      <div class="step" data-only="image" id="stepOpening">
-        <h2><span class="num">2</span> Opening</h2>
-        <div class="wait note">Upload your frame first.</div>
-        <div class="todo">
-          <div class="note" id="openingStatus">Finding the opening&#8230;</div>
-          <div class="stack">
-            <button class="tool primary" id="btnPickOpening" title="Click inside the opening of your image">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3l14 9-6 1.5L10 20z"/></svg>
-              Click inside the opening
-            </button>
-            <button class="tool" id="btnAutoScreen">Try finding it again</button>
-            <button class="tool" id="btnRemoveBg" title="For a PNG whose opening is white instead of transparent">Opening is white? Make it transparent</button>
-            <details class="drawit">
-              <summary>Draw it myself</summary>
-              <div class="row" style="margin-top:7px">
-                <button class="tool" data-tool="frameRect" title="Drag a rectangle (R)">Rectangle</button>
-                <button class="tool" data-tool="framePersp" title="Drag, then move the 4 corners (P)">4 corners</button>
-              </div>
-            </details>
+        <div class="step" data-only="generate" data-step="on">
+          <span class="num">3</span>
+          <h2>Border width <span class="val" id="genBorderVal">7.5%</span></h2>
+          <div class="rangewrap">
+            <svg class="ic"><use href="#i-minus"/></svg>
+            <input type="range" id="genBorder" min="2" max="16" step="0.1" value="7.5" aria-label="Border width, percent of the opening">
+            <svg class="ic"><use href="#i-plus"/></svg>
           </div>
         </div>
-        <div class="done">
-          <div class="doneline"><i>&#10003;</i><span id="openingDone">Opening found</span></div>
-          <div class="note">Not quite right? Drag the blue corner points on the canvas.</div>
-          <button class="link" id="btnRedoOpening">Wrong opening? Remove it and pick by hand</button>
-        </div>
-      </div>
 
-      <!-- Last step, both modes -->
-      <div class="step" data-only="generate image" id="stepExport">
-        <h2><span class="num" id="exportNum">3</span> Check and export</h2>
-        <div class="wait note">Finish the steps above first.</div>
-        <div class="todo">
-          <div class="stack">
-            <button class="tool" id="btnTryPhoto">
-              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/></svg>
-              Try with a photo (optional)
-            </button>
-            <button class="tool primary" id="btnExportPixopikPanel">Export for Pixopik</button>
+        <!-- From image: each step opens once the one before it is done -->
+        <div class="step" data-only="image" id="stepUpload">
+          <span class="num">1</span>
+          <h2>Upload your frame</h2>
+          <div class="todo">
+            <button class="tool primary big" id="btnUploadFrame"><svg class="ic"><use href="#i-upload"/></svg>Upload frame PNG</button>
+            <div class="note">or drop it on the canvas. Best with a transparent opening.</div>
+          </div>
+          <div class="done">
+            <div class="doneline"><span id="uploadName">Frame image added</span></div>
+            <button class="link" id="btnReplaceFrame"><svg class="ic"><use href="#i-refresh"/></svg>Use a different image</button>
           </div>
         </div>
-      </div>
 
-      <!-- Rarely needed: collapsed so the steps stay the whole story -->
-      <details class="moretools" data-only="generate image">
-        <summary>More tools</summary>
-        <div class="sect">
-          <h2>Add on top</h2>
-          <div class="stack">
-            <div class="row">
-              <button class="tool" data-tool="text">Text <span class="k">T</span></button>
-              <button class="tool" data-tool="shape">Shape <span class="k">S</span></button>
+        <div class="step" data-only="image" id="stepOpening">
+          <span class="num">2</span>
+          <h2>Opening</h2>
+          <div class="wait note">Upload your frame first.</div>
+          <div class="todo">
+            <div class="note" id="openingStatus">Finding the opening&#8230;</div>
+            <div class="stack">
+              <button class="tool primary" id="btnPickOpening" title="Click inside the opening of your image"><svg class="ic"><use href="#i-pick"/></svg>Click inside the opening</button>
+              <button class="tool" id="btnAutoScreen"><svg class="ic"><use href="#i-refresh"/></svg>Try finding it again</button>
+              <button class="tool" id="btnRemoveBg" title="For a PNG whose opening is white instead of transparent"><svg class="ic"><use href="#i-erase"/></svg>Opening is white? Make it transparent</button>
+              <details class="drawit">
+                <summary>Draw it myself</summary>
+                <div class="row" style="margin-top:7px">
+                  <button class="tool" data-tool="frameRect" title="Drag a rectangle (R)"><svg class="ic"><use href="#i-rect"/></svg>Rectangle</button>
+                  <button class="tool" data-tool="framePersp" title="Drag, then move the 4 corners (P)"><svg class="ic"><use href="#i-quad"/></svg>4 corners</button>
+                </div>
+              </details>
             </div>
-            <button class="tool" data-act="addImage">Image layer</button>
-            <button class="tool" data-act="addShadow">Shadow layer</button>
-            <button class="tool" data-act="addOverlay" data-only="image">Another artwork layer</button>
-            <button class="tool" id="btnSilhouetteFrame" data-only="image" title="Trace the visible subject into one frame">Silhouette frame</button>
+          </div>
+          <div class="done">
+            <div class="doneline"><span id="openingDone">Opening found</span></div>
+            <div class="note">Not quite right? Drag the round corner points on the canvas.</div>
+            <button class="link" id="btnRedoOpening"><svg class="ic"><use href="#i-pick"/></svg>Wrong opening? Pick it by hand</button>
           </div>
         </div>
-        <div class="sect">
-          <h2>Layers <span style="text-transform:none;letter-spacing:0;font-weight:500">(top first)</span></h2>
-          <div class="layers" id="layerList"></div>
+
+        <!-- Rarely needed: collapsed so the steps stay the whole story -->
+        <details class="moretools" data-only="generate image">
+          <summary><svg class="ic"><use href="#i-layers"/></svg>More tools</summary>
+          <div class="sect">
+            <h2>Add on top</h2>
+            <div class="stack">
+              <div class="row">
+                <button class="tool" data-tool="text"><svg class="ic"><use href="#i-text"/></svg>Text <span class="k">T</span></button>
+                <button class="tool" data-tool="shape"><svg class="ic"><use href="#i-shape"/></svg>Shape <span class="k">S</span></button>
+              </div>
+              <button class="tool" data-act="addImage"><svg class="ic"><use href="#i-image"/></svg>Image layer</button>
+              <button class="tool" data-act="addShadow"><svg class="ic"><use href="#i-shadow"/></svg>Shadow layer</button>
+              <button class="tool" data-act="addOverlay" data-only="image"><svg class="ic"><use href="#i-layers"/></svg>Another artwork layer</button>
+              <button class="tool" id="btnSilhouetteFrame" data-only="image" title="Trace the visible subject into one frame"><svg class="ic"><use href="#i-silhouette"/></svg>Silhouette frame</button>
+            </div>
+          </div>
+          <div class="sect">
+            <h2>Layers <span class="val" style="font-weight:500">top first</span></h2>
+            <div class="layers" id="layerList"></div>
+          </div>
+          <div class="sect">
+            <h2>Saved mockups</h2>
+            <div class="stack" id="tplList"></div>
+          </div>
+        </details>
+
+        <!-- Last step, both modes. Sticky: the goal never scrolls out of view. -->
+        <div class="step" data-only="generate image" id="stepExport">
+          <span class="num" id="exportNum">3</span>
+          <h2>Check and export</h2>
+          <div class="wait note">Finish the steps above first.</div>
+          <div class="todo">
+            <button class="tool primary big" id="btnExportPixopikPanel"><svg class="ic"><use href="#i-export"/></svg>Export for Pixopik</button>
+            <button class="link trylink" id="btnTryPhoto" title="Preview a photo of your own in the opening. Optional: it is never exported."><svg class="ic"><use href="#i-photo"/></svg>Try it with a photo first (optional)</button>
+          </div>
         </div>
-        <div class="sect">
-          <h2>Saved mockups</h2>
-          <div class="stack" id="tplList"></div>
-        </div>
-      </details>
+      </div>
     </aside>
 
     <!-- STAGE -->
     <main class="stage">
       <div class="stagebar">
         <span class="pill blue" id="modePill">Select</span>
-        <span id="stageMsg">Drag a blue corner to adjust an opening · double-click an opening to try a photo</span>
+        <span id="stageMsg">Drag a corner point to adjust an opening · double-click an opening to try a photo</span>
         <div class="spacer"></div>
-        <button class="btn sm" id="zoomOut">−</button>
-        <span class="val" id="zoomVal" style="min-width:42px;text-align:center">100%</span>
-        <button class="btn sm" id="zoomIn">+</button>
-        <button class="btn sm" id="zoomFit">Fit</button>
+        <div class="zoom">
+          <button class="btn sm" id="zoomOut" title="Zoom out" aria-label="Zoom out"><svg class="ic"><use href="#i-minus"/></svg></button>
+          <span class="val" id="zoomVal">100%</span>
+          <button class="btn sm" id="zoomIn" title="Zoom in" aria-label="Zoom in"><svg class="ic"><use href="#i-plus"/></svg></button>
+          <button class="btn sm" id="zoomFit" title="Fit to screen"><svg class="ic"><use href="#i-fit"/></svg>Fit</button>
+        </div>
       </div>
       <div class="canvaswrap" id="wrap">
         <!-- First screen: pick one of the two ways to make a frame -->
         <div class="chooser" id="modeChooser">
           <div class="ccard">
+            <div class="eyebrow">New frame</div>
             <h3>How do you want to make the frame?</h3>
+            <p>Either way you finish with a frame that is ready for Pixopik's library.</p>
             <div class="cgrid">
               <button class="copt" data-choose="generate">
-                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="7" width="34" height="34" rx="2"/><rect x="14" y="14" width="20" height="20" stroke-dasharray="3 2.5"/><path d="M7 7l7 7M41 7l-7 7M41 41l-7-7M7 41l7-7"/></svg>
+                <div class="art">
+                  <svg viewBox="0 0 96 96" fill="none"><rect x="14" y="14" width="68" height="68" rx="3" fill="#fff" stroke="currentColor" stroke-width="2.5"/><rect x="25" y="25" width="46" height="46" fill="url(#ffsky)"/><path d="M14 14l11 11M82 14L71 25M82 82L71 71M14 82l11-11" stroke="currentColor" stroke-width="2"/><defs><linearGradient id="ffsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bcd9ef"/><stop offset="1" stop-color="#e6f1f8"/></linearGradient></defs><path d="M25 62c9-4 20-4 30-1s12 3 16 2v8H25z" fill="#9cbf4b"/></svg>
+                </div>
                 <b>Generate</b>
-                <span>Pick a shape and a border style. The frame is drawn for you.</span>
+                <span>Pick a shape and a moulding. The frame is drawn for you.</span>
+                <span class="go">Start <svg class="ic"><use href="#i-arrow"/></svg></span>
               </button>
               <button class="copt" data-choose="image">
-                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 8c6 3 22-3 28 2s-1 22 2 28-22 3-28 0-3-24-2-30z"/><ellipse cx="24" cy="24" rx="8" ry="9" stroke-dasharray="3 2.5"/></svg>
+                <div class="art">
+                  <svg viewBox="0 0 96 96" fill="none"><path d="M18 16c13 5 44-5 58 3s-2 44 3 57-44 6-58 1-6-50-3-61z" fill="#fff" stroke="currentColor" stroke-width="2.5"/><ellipse cx="48" cy="47" rx="17" ry="19" fill="url(#ffsky)" stroke="currentColor" stroke-width="1.6" stroke-dasharray="4 3"/><circle cx="31" cy="28" r="2.4" fill="currentColor"/><circle cx="66" cy="70" r="2.4" fill="currentColor"/></svg>
+                </div>
                 <b>From image</b>
                 <span>Upload your own frame PNG. The opening is found automatically.</span>
+                <span class="go">Start <svg class="ic"><use href="#i-arrow"/></svg></span>
               </button>
             </div>
           </div>
         </div>
         <div class="estate gone" id="emptyState">
           <div class="ecard">
-            <svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="7" y="8.5" width="10" height="7" rx="1" stroke-dasharray="2.5 2"/></svg>
+            <div class="eic"><svg class="ic"><use href="#i-upload"/></svg></div>
             <h3>Drop your frame PNG here</h3>
             <p>The opening is found for you as soon as it lands.</p>
             <div class="acts">
-              <button class="btn primary" id="esAddOverlay">Upload frame PNG</button>
+              <button class="btn primary" id="esAddOverlay"><svg class="ic"><use href="#i-upload"/></svg>Upload frame PNG</button>
             </div>
+            <div class="tip">A transparent opening works best.</div>
           </div>
         </div>
         <div class="board" id="board">
@@ -526,7 +690,7 @@ body[data-mode="image"] [data-only~="image"]{display:block}
       </div>
     </main>
 
-    <!-- RIGHT -->
+    <!-- RIGHT: inspector, rendered by 06-properties.js -->
     <aside class="panel right" id="right"></aside>
 
   </div>
@@ -541,7 +705,7 @@ body[data-mode="image"] [data-only~="image"]{display:block}
 <script src="js/03-geometry.js"></script><!-- homography and quad warping -->
 <script src="js/04-render.js"></script><!-- canvas renderer -->
 <script src="js/05-layers.js"></script><!-- layers, tools, hit-testing -->
-<script src="js/06-properties.js"></script><!-- property panel -->
+<script src="js/06-properties.js"></script><!-- inspector: live preview, status, layer properties -->
 <script src="js/07-shadow.js"></script><!-- shadow, export, cloud publish -->
 <script src="js/08-files.js"></script><!-- export, project files, saved mockups, zoom -->
 <script src="js/09-trace.js"></script><!-- tracer, simplifier, background removal -->

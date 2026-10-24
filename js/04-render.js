@@ -52,19 +52,23 @@ function render(target, opts) {
           c.restore();
         }
       } else if (o.chrome) {
-        // empty frame placeholder (editor only — never exported)
-        c.save();
-        const silhouettePath=L.publishMode==='silhouette'?_silhouettePath2D(L):null;
-        if(!silhouettePath){c.beginPath();c.moveTo(L.points[0].x,L.points[0].y);L.points.slice(1).forEach(p=>c.lineTo(p.x,p.y));c.closePath()}
-        c.fillStyle = 'rgba(39,131,222,.14)'; silhouettePath?c.fill(silhouettePath):c.fill();
-        c.setLineDash([7, 5]); c.lineWidth = 1.6 / zoom; c.strokeStyle = '#2783DE'; if(!silhouettePath)c.stroke();
+        // Empty opening (editor only, never exported): Pixopik's own empty-
+        // frame placeholder, so the canvas already looks the way the frame
+        // will in Elements -> Frames.
+        const path = L.publishMode === 'silhouette' ? _silhouettePath2D(L) : ffPolyPath(L.points);
         const b = bbox(L.points);
-        c.setLineDash([]);
-        c.fillStyle = '#2783DE';
-        c.font = `600 ${Math.max(11, Math.min(15, b.h / 12))}px -apple-system,Segoe UI,Roboto,sans-serif`;
-        c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.fillText('Photo goes here', b.x + b.w / 2, b.y + b.h / 2);
+        c.save();
+        c.clip(path);
+        c.translate(b.x, b.y);
+        if (typeof ffPxDrawPlaceholder === 'function') ffPxDrawPlaceholder(c, b.w, b.h);
+        else { c.fillStyle = FF_UI.sky; c.fillRect(0, 0, b.w, b.h); }
         c.restore();
+        if (L.publishMode !== 'silhouette') {
+          c.save();
+          c.setLineDash([6 / zoom, 4 / zoom]); c.lineWidth = 1.2 / zoom; c.strokeStyle = FF_UI.accentFaint;
+          c.stroke(path);
+          c.restore();
+        }
       }
       if(L.detailOverlayDataUrl){const detail=getImg(L.detailOverlayDataUrl);if(detail)c.drawImage(detail,0,0,doc.canvas.w,doc.canvas.h)}
     } else if (L.type === 'image' || L.type === 'overlay' || L.type === 'shadow') {
@@ -109,23 +113,45 @@ function render(target, opts) {
   c.restore();
 }
 
+/* Editor colours, the same tokens as index.html's design system. */
+const FF_UI = {
+  accent: '#5146d8',
+  accentFaint: 'rgba(81,70,216,.55)',
+  edit: '#c7772f',        // content mode: the photo inside is being moved
+  sky: '#cfe3f3'
+};
+
+function ffPolyPath(points) {
+  const p = new Path2D();
+  points.forEach((q, i) => (i ? p.lineTo(q.x, q.y) : p.moveTo(q.x, q.y)));
+  p.closePath();
+  return p;
+}
+
+/* Selection chrome. Corner handles are small round points: they mark where
+   to grab without hiding the corner of the opening they control. The hit
+   area in 05-layers.js (hitCorner) stays larger than the dot. */
 function drawChrome(c) {
   const L = layer(sel);
   if (!L) return;
-  const active = contentEdit === L.id;
+  const col = contentEdit === L.id ? FF_UI.edit : FF_UI.accent;
   c.save();
-  c.lineWidth = 1.6 / zoom;
-  c.strokeStyle = active ? '#D5803B' : '#2783DE';
+  c.lineWidth = 1.5 / zoom;
+  c.strokeStyle = col;
 
   if (L.type === 'frame') {
-    if(L.publishMode==='silhouette'){/* Internal one-M bridges are fill-only; never stroke them. */}
-    else {c.beginPath();c.moveTo(L.points[0].x,L.points[0].y);L.points.slice(1).forEach(p=>c.lineTo(p.x,p.y));c.closePath();c.stroke()}
-    if (!L.locked && L.publishMode!=='silhouette') {
-      const r = 6 / zoom;
+    // Internal one-M bridges of a silhouette are fill-only; never stroke them.
+    if (L.publishMode !== 'silhouette') c.stroke(ffPolyPath(L.points));
+    if (!L.locked && L.publishMode !== 'silhouette') {
+      const r = 4.5 / zoom;
       L.points.forEach((p) => {
-        c.beginPath(); c.rect(p.x - r, p.y - r, r * 2, r * 2);
+        c.save();
+        c.shadowColor = 'rgba(35,35,52,.28)'; c.shadowBlur = 4 / zoom; c.shadowOffsetY = 1 / zoom;
+        c.beginPath(); c.arc(p.x, p.y, r, 0, Math.PI * 2);
         c.fillStyle = '#fff'; c.fill();
-        c.lineWidth = 2 / zoom; c.strokeStyle = active ? '#D5803B' : '#2783DE'; c.stroke();
+        c.restore();
+        c.beginPath(); c.arc(p.x, p.y, r, 0, Math.PI * 2);
+        c.lineWidth = 1.8 / zoom; c.strokeStyle = col; c.stroke();
       });
     }
   } else {

@@ -293,7 +293,7 @@ function ffPxChecks(built, form) {
 
   if (!built || built.error === 'no-opening') {
     add('err', 'No opening yet. ' + (window.ffStudioMode === 'generate'
-      ? 'Pick a style to draw a frame.' : 'Press Auto-detect opening, or draw one.'));
+      ? 'Pick a style on the left to draw a frame.' : 'Click inside the opening of your frame (step 2), or draw one.'));
     return out;
   }
   if (built.error) { add('err', 'Nothing to export: the canvas is empty.'); return out; }
