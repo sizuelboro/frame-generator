@@ -814,11 +814,11 @@ async function testMultiOpeningPipelines() {
 function testRatioPresets() {
   section('8. print-size ratio presets');
 
-  chk('FF_RATIOS exposed', Array.isArray(window.FF_RATIOS) && window.FF_RATIOS.length === 7,
+  chk('FF_RATIOS exposed', Array.isArray(window.FF_RATIOS) && window.FF_RATIOS.length === 8,
     'count=' + (window.FF_RATIOS || []).length);
 
   // every preset resolves to the arithmetic ratio it claims
-  var expect = { 'iso': 1 / Math.SQRT2, '2-3': 2 / 3, '3-4': 3 / 4, '4-5': 4 / 5, '5-7': 5 / 7, '11-14': 11 / 14, '1-1': 1 };
+  var expect = { 'iso': 1 / Math.SQRT2, '2-3': 2 / 3, '3-4': 3 / 4, '4-5': 4 / 5, '5-7': 5 / 7, '11-14': 11 / 14, '1-1': 1, '9-16': 9 / 16 };
   for (var i = 0; i < FF_RATIOS.length; i++) {
     var id = FF_RATIOS[i].id;
     var got = ffRatioValue(id, 'portrait');
@@ -848,22 +848,6 @@ function testRatioPresets() {
   var wide = ffRatioBox('2-3', 'landscape', 1200, 800);
   chk('landscape box also fits', wide.w <= 1200 && wide.h <= 800, wide.w + 'x' + wide.h);
 
-  // adding a frame records the intent on the layer
-  var before = doc.layers.length;
-  var L = ffAddRatioFrame('iso', 'portrait');
-  chk('frame layer added', doc.layers.length === before + 1 && !!L);
-  chk('frame is a rect', L.type === 'frame' && L.frameType === 'rect', L.frameType);
-  chk('ratio id recorded', L.ratioId === 'iso', String(L.ratioId));
-  chk('ratio value recorded', Math.abs(L.ratioValue - 0.7071) < 0.001, String(L.ratioValue));
-  chk('orientation recorded', L.ratioOrientation === 'portrait');
-  chk('name carries the preset', /A-series/.test(L.name), L.name);
-
-  var b2 = bbox(L.points);
-  chk('geometry matches the declared ratio', Math.abs(b2.w / b2.h - 0.70710678) < 0.005,
-    (b2.w / b2.h).toFixed(4));
-  chk('four points', L.points.length === 4);
-
-  doc.layers.length = before;
 }
 
 /* =========================================================================
@@ -923,7 +907,6 @@ function testFrameDesigns() {
 
   // applying a design puts the overlay and its opening in register
   var before = doc.layers.length;
-  ffSelectedRatio = '4-5';
   var res = ffApplyFrameDesign({ ratioId: '4-5', orientation: 'portrait', designId: 'gold' });
   chk('design applied', !!res);
   chk('two layers added', doc.layers.length === before + 2, String(doc.layers.length - before));
@@ -951,7 +934,6 @@ function testFrameDesigns() {
     'border=' + res.border);
 
   doc.layers.length = before;
-  ffSelectedRatio = '';
 
   chk('no runtime errors after presets and designs', window.__ffErrors.length === 0,
     window.__ffErrors.join(' | '));

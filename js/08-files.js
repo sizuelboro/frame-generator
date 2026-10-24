@@ -120,7 +120,7 @@ dropZone.addEventListener('drop', (ev) => {
         const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
         addLayerTop({ id: uid(), type: 'overlay', name: f.name.replace(/\.[^.]+$/, '') || 'Mockup overlay', visible: true, locked: true, opacity: 1,
           src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
-        toast('Mockup added · now click Select design area');
+        toast('Frame image added · now press Auto-detect opening');
       });
     } else {
       loadMeta(src).then(m => {

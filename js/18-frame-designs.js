@@ -17,7 +17,7 @@
 
    The output is an ordinary locked `overlay` layer - byte for byte the
    same shape as one the creator uploads by hand - so every downstream
-   feature (Select design area, Export for AI, exports) keeps working
+   feature (opening detection, Export for AI, exports) keeps working
    with no changes.
    ========================================================================= */
 
@@ -264,9 +264,6 @@ function ffFrameDesign(id) {
   return null;
 }
 
-/* Custom swatches the creator drops in. Any flat image works. */
-let ffCustomSwatch = null;
-
 /* ---------------------------------------------------------------------
    One length of moulding: the swatch tiled along the bar, with bevel
    shading across its thickness so it reads as a raised profile rather
@@ -371,7 +368,8 @@ function ffBuildMitredFrame(swatch, W, H, border, opts) {
 
 /* ---------------------------------------------------------------------
    Compose a design onto the document: a locked overlay plus the matching
-   opening frame, already in register so "Pick opening" is not needed.
+   opening frame, already in register so no opening has to be detected.
+   The Generate panel (22-modes.js) is the only caller in the Studio.
    --------------------------------------------------------------------- */
 function ffApplyFrameDesign(opts) {
   const o = opts || {};
@@ -437,62 +435,6 @@ function ffApplyFrameDesign(opts) {
   sync();
 
   return { overlayName: label + ' frame', frame: F, border: b, outer: { w: W, h: H } };
-}
-
-/* =========================================================================
-   UI
-   ========================================================================= */
-function ffFillDesignSelect() {
-  const sel = $('#frameDesign');
-  if (!sel || sel.options.length) return;
-  const first = document.createElement('option');
-  first.value = '';
-  first.textContent = 'Frame design\u2026';
-  sel.appendChild(first);
-  FF_FRAME_DESIGNS.forEach(d => {
-    const o = document.createElement('option');
-    o.value = d.id;
-    o.textContent = d.label;
-    sel.appendChild(o);
-  });
-  const cus = document.createElement('option');
-  cus.value = '__custom__';
-  cus.textContent = 'Upload swatch\u2026';
-  sel.appendChild(cus);
-}
-
-ffFillDesignSelect();
-
-if ($('#frameDesign')) {
-  $('#frameDesign').onchange = async (ev) => {
-    const id = ev.target.value;
-    ev.target.value = '';
-    if (!id) return;
-
-    const ratioId = ffSelectedRatio;
-    if (!ratioId) { toast('Pick a frame ratio first'); return; }
-    const orientation = typeof ffRatioOrientation === 'string' ? ffRatioOrientation : 'portrait';
-
-    let swatch = null, swatchName = '';
-    if (id === '__custom__') {
-      const f = await pickFile();
-      if (!f) return;
-      const img = new Image();
-      img.src = f.src;
-      try { await img.decode(); } catch (e) { toast('Could not read that swatch'); return; }
-      swatch = img;
-      swatchName = (f.name || 'Custom').replace(/\.[^.]+$/, '');
-      ffCustomSwatch = img;
-    }
-
-    const res = ffApplyFrameDesign({
-      ratioId, orientation,
-      designId: id === '__custom__' ? null : id,
-      swatch, swatchName
-    });
-    if (!res) { toast('Pick a frame ratio first'); return; }
-    toast(res.overlayName + ' added \u00b7 ' + res.border + 'px moulding \u00b7 opening is in register, no need to Select design area');
-  };
 }
 
 window.FF_FRAME_DESIGNS = FF_FRAME_DESIGNS;

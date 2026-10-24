@@ -9,10 +9,18 @@ below still follow the Canva-era path rules, because the detectors simplify
 against them.
 
 ```
-  Studio (browser)
-  index.html + js/   ──▶  overlay PNG + frame-coords.json
-  trace / bleed / fit
+  Studio (browser)                     Pixopik
+  index.html + js/   ──▶  <id>.png  ──▶  public/frames/<id>.png
+  generate / trace /      entry     ──▶  src/lib/customFrames.ts
+  bleed / crop
 ```
+
+The Studio has two modes (`js/22-modes.js`): **Generate** draws a moulding
+around an opening of a chosen shape (`17-ratio-presets.js`,
+`18-frame-designs.js`); **From image** detects or draws the opening in the
+creator's artwork (`11-detect.js`, `14-wand.js`, `21-soft-bleed.js`). Mode is
+a view only; it is not saved in the document. Both end at Export for Pixopik
+(`23-pixopik-export.js`, see [pixopik-export.md](pixopik-export.md)).
 
 A mockup can have several openings - a room shot with three posters, a shelf
 of frames. Each opening becomes its own frame layer. All the openings share

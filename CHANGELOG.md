@@ -19,8 +19,34 @@ The Studio is being repurposed as Pixopik's frame generator. Everything that
 existed only to publish to Canva is removed; detection, bleed, shadow, PSD,
 the AI round trip, ratio presets and frame designs stay.
 
+### Added
+
+- **Two modes, chosen up front.** The Studio opens on "How do you want to make
+  the frame?": **Generate** (a moulding drawn for you) or **From image** (your
+  own artwork). The left panel shows only that mode's controls; the toolbar
+  tabs switch the view without touching the canvas. `js/22-modes.js`.
+- **Generate panel.** Shape chips (1:1, 4:5, 3:4, 2:3, 9:16) with a
+  portrait/landscape toggle, a thumbnail grid of styles drawn with the real
+  frame builder, **Upload texture**, and a **Border width** slider. One click
+  draws the frame; any later change redraws the same frame and keeps the
+  preview photo in it.
+- **Export for Pixopik.** One dialog (name, id, group, keywords, opening,
+  quality, live preview and checks) that writes `<id>.png` and a ready-to-paste
+  `<id>.frame.txt` entry for Pixopik's `CUSTOM_FRAMES`. Crops automatically,
+  applies Auto bleed, simplifies the opening to at most 400 points and
+  validates it with Pixopik's own `isFrameClip` rule. `js/23-pixopik-export.js`,
+  [docs/pixopik-export.md](docs/pixopik-export.md).
+- **9:16 ratio preset**, for story and widescreen frames.
+- **`PIXOPIK_*` limits** in `shared/frameforge-limits.js`.
+- **`test:pixopik`**: a browser suite that drives the real `index.html`.
+
 ### Removed
 
+- **Toolbar ratio picker, orientation toggle, `Add design area` and the frame
+  design dropdown.** They moved into the Generate panel, except `Add design
+  area`: a bare opening with no artwork is what Pixopik's built-in rectangle
+  already is. `ffAddRatioFrame` went with it.
+- **`Tools ▾` menu.** Its items are in the From image panel.
 - **Canva publishing.** `Publish to Canva`, `Library settings` and the
   folder picker, plus `frameforge-worker11/` (Cloudflare Worker + R2
   library) and `frameforge-canva-app11/` (Canva side-panel app).

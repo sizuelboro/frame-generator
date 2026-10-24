@@ -1,9 +1,9 @@
 # FrameForge
 
-Turn a mockup image into a photo frame: a transparent overlay plus the
-opening a photo drops into. Being repurposed as the frame generator for
-Pixopik; the Canva publishing path (Worker, Canva app, PDFs, Bulk publish)
-has been removed.
+Make photo frames for Pixopik's frame library: a transparent overlay plus the
+opening a photo drops into. Generate a moulding, or start from your own
+artwork, then **Export for Pixopik**. The Canva publishing path (Worker, Canva
+app, PDFs, Bulk publish) has been removed.
 
 Version **7.6.0**. See [CHANGELOG.md](CHANGELOG.md).
 
@@ -59,34 +59,33 @@ Both guards run as part of `npm test`.
 Read [docs/architecture.md](docs/architecture.md) before changing tracing,
 bleed or path encoding.
 
-## Print ratios and frame designs
+## Two ways to make a frame
 
-The toolbar opens with a **ratio picker**, a portrait/landscape toggle, **Add
-opening**, and a **frame design** picker. Pick the print size first, then the
-moulding; everything downstream inherits that choice.
+The Studio opens by asking how you want to make the frame. The choice only
+decides which controls the left panel shows; switching later with the
+**Generate / From image** tabs never changes the canvas.
 
-Seven presets, covering what actually sells:
+| Mode | Left panel | Use it for |
+| --- | --- | --- |
+| **Generate** | Shape (1:1, 4:5, 3:4, 2:3, 9:16, portrait/landscape), Style grid, Border width | A moulding drawn for you. One click on a style draws the frame; changing any setting redraws the same frame. |
+| **From image** | Upload frame image, Auto-detect opening, Select manually, Rect / Perspective, Remove background, Silhouette | Your own artwork, such as a hand-drawn crayon frame. |
 
-| Ratio | Common sizes |
-| --- | --- |
-| A-series | A5, A4, A3, A2, A1 |
-| 2:3 | 12×18, 16×24, 20×30, 24×36 |
-| 3:4 | 9×12, 12×16, 18×24 |
-| 4:5 | 8×10, 16×20 |
-| 5:7 | 5×7, 10×14 |
-| 11:14 | 11×14 |
-| 1:1 | Square prints |
+Both modes share **Decorate** (image, shadow, text, shape layers), the layer
+list and **Export for Pixopik**.
 
-The chosen ratio is **recorded on the layer**, not measured back off the
-geometry. 5:7 (0.7143) and A-series (0.7071) sit about 1% apart, which is
-inside the noise of a traced opening, so measurement alone cannot tell an A4
-listing from a 5×7 one.
+## Frame shapes and designs
+
+The opening shapes come from `FF_RATIOS` in `js/17-ratio-presets.js`. Generate
+offers 1:1, 4:5, 3:4, 2:3 and 9:16; the print-only presets (A-series, 5:7,
+11:14) stay in the list so older projects and the AI round trip still resolve
+them.
 
 Frame designs are **generated, not stitched from asset PNGs**. A flat 256px
 swatch is drawn as four bars mitred at 45 degrees around the opening, so every
-ratio gets fresh geometry and nothing is stretched or tiled. Six built-ins
-(white, black, gold, oak, walnut, natural) plus **custom swatch upload** — any
-flat image or colour becomes a frame that meets correctly at all four corners.
+ratio gets fresh geometry and nothing is stretched or tiled. Nine built-ins
+(white, black, gold, oak, walnut, natural wood, maple, solid oak, natural oak)
+plus **Upload texture** — any flat image or colour becomes a frame that meets
+correctly at all four corners.
 
 ### Why this matters for the AI round trip
 
@@ -98,16 +97,45 @@ which is exactly how a "US Letter" opening (0.773) ends up sold as A4 (0.707).
 
 ## Creator workflow
 
-0. Pick a **ratio preset** and orientation, hit **Add design area**, then choose a
-   **frame design**. Skip this if you are starting from an existing mockup
-   photo.
-1. Build or open the mockup in the Studio.
-2. Leave **Advanced → Auto bleed** at 6px (8px for rough edges). It is a ceiling, not a
-   fixed amount — overlay opacity is measured per opening vertex and thin
-   borders get less automatically.
-3. **Trim canvas.**
-4. **Export ▾ · Export overlay PNG** — writes the transparent overlay and
-   `frame-coords.json` (the opening points, with bleed applied).
+**Generate:** pick a shape, click a style, adjust the border width, then
+**Export for Pixopik**.
+
+**From image:**
+
+1. **Upload frame image** (or drop it on the canvas). The opening should be
+   transparent; if it is white, run **Remove background** first.
+2. **Auto-detect opening**. For hand-drawn borders (crayon, watercolour) it
+   tucks the photo under the dense strokes so no gaps show. Or **Select
+   manually** and click inside the opening (tolerance 25 to 40).
+3. Optional: select the opening and **Set image** to check the fit.
+4. Leave **Advanced → Auto bleed** at 6px (8px for rough edges). It is a
+   ceiling, not a fixed amount.
+5. **Export for Pixopik**.
+
+## Export for Pixopik
+
+One dialog, two files. Details: [docs/pixopik-export.md](docs/pixopik-export.md).
+
+| Field | What it does |
+| --- | --- |
+| Name | The label in Pixopik's Elements → Frames |
+| ID | Made from the name; also the file name. Built-in Pixopik ids are refused |
+| Group | One of Pixopik's eight frame groups |
+| Keywords | For Pixopik's frame search |
+| Opening | Only shown when there are several; a Pixopik frame holds one |
+| Quality | Longest side of the overlay PNG: 1000, 1600 (default) or 2400 px |
+
+The canvas is cropped for you (no **Trim canvas** needed), the opening gets
+Auto bleed and is simplified to Pixopik's limits (at most 400 points), and the
+dialog checks the result against the same rule Pixopik validates with before
+it lets you export:
+
+- `<id>.png` goes to Pixopik's `public/frames/`
+- `<id>.frame.txt` holds the entry to paste into `CUSTOM_FRAMES` in
+  `src/lib/customFrames.ts` (**Copy entry** puts it on the clipboard instead)
+
+**Export ▾ · Export overlay PNG** still writes the raw overlay and
+`frame-coords.json` in canvas pixels.
 
 ## Photoshop PSD export
 

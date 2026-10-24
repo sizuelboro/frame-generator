@@ -210,6 +210,83 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 .ecard .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .ecard .tip{margin-top:15px;font-size:11.5px;color:var(--text2)}
 .ecard .tip b{background:var(--soft2);border-radius:4px;padding:1px 5px;font-weight:600}
+/* ---------- modes ---------- */
+/* A panel section names the modes it belongs to; the body names the mode
+   the Studio is in. Sections for the other mode simply are not shown. */
+[data-only]{display:none}
+body[data-mode="generate"] [data-only~="generate"],
+body[data-mode="image"] [data-only~="image"]{display:block}
+
+.modeswitch{display:inline-flex;padding:3px;border-radius:10px;background:var(--soft2);gap:2px}
+.modetab{min-height:30px;padding:0 13px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text2)}
+.modetab:hover{color:var(--text)}
+.modetab[aria-selected="true"]{background:var(--canvas);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.modetab:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+
+.tool.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.tool.primary:hover{background:#1f72c4}
+.tool.primary .k{background:rgba(255,255,255,.2);color:#fff}
+.row>.tool{padding:0 8px}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips .chip{min-height:30px;padding:0 11px;cursor:pointer}
+.styles{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.style{
+  display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px 5px;
+  border:1px solid var(--border);border-radius:9px;font-size:11px;font-weight:550;color:var(--text);
+  line-height:1.2;text-align:center;
+}
+.style:hover{background:var(--soft)}
+.style.on{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue);background:var(--blue-soft)}
+.style img,.style .up{width:52px;height:52px;border-radius:4px;display:block}
+.style .up{display:grid;place-items:center;border:1.5px dashed var(--border);color:var(--text2);font-size:20px}
+
+.chooser{position:absolute;inset:0;z-index:6;display:grid;place-items:center;padding:24px;background:rgba(249,248,247,.86)}
+.chooser.gone{display:none}
+.ccard{max-width:560px;width:100%;text-align:center}
+.ccard h3{font-size:18px;font-weight:650;letter-spacing:-.01em;margin-bottom:16px}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.copt{
+  display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 18px;
+  background:var(--canvas);border:1px solid var(--border);border-radius:14px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px rgba(0,0,0,.07);transition:border-color .12s,transform .12s;
+}
+.copt:hover{border-color:var(--blue);transform:translateY(-1px)}
+.copt:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.copt svg{width:46px;height:46px;color:var(--blue)}
+.copt b{font-size:16px;font-weight:650}
+.copt span{font-size:12.5px;color:var(--text2);line-height:1.45}
+
+/* ---------- Export for Pixopik ---------- */
+.pxback{position:fixed;inset:0;z-index:9990;background:rgba(15,17,21,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.pxcard{
+  background:var(--canvas);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.28);
+  width:720px;max-width:100%;max-height:calc(100vh - 32px);overflow:auto;padding:20px;
+}
+.pxcard h3{font-size:15.5px;font-weight:650;margin-bottom:3px}
+.pxcard .sub{font-size:12.5px;color:var(--text2);margin-bottom:16px}
+.pxgrid{display:grid;grid-template-columns:1fr 260px;gap:20px}
+.pxform{display:flex;flex-direction:column;gap:10px}
+.pxform .field input,.pxform .field select{width:100%}
+.pxid{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.pxprev{
+  width:260px;height:260px;border-radius:10px;border:1px solid var(--border);display:grid;place-items:center;
+  background:repeating-conic-gradient(#eeedeb 0 25%,#fff 0 50%) 0 0/16px 16px;
+}
+.pxprev canvas{max-width:240px;max-height:240px;display:block}
+.pxcap{font-size:11.5px;color:var(--text2);text-align:center;margin-top:6px}
+.pxchecks{list-style:none;display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12.5px}
+.pxchecks li{display:flex;gap:7px;align-items:flex-start;line-height:1.4}
+.pxchecks li i{font-style:normal;font-weight:700;width:14px;flex:0 0 14px;text-align:center}
+.pxchecks li.ok i{color:var(--green)}
+.pxchecks li.warn i{color:var(--orange)}
+.pxchecks li.err{color:#8d2b20}
+.pxchecks li.err i{color:var(--red)}
+.pxacts{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:18px}
+.pxacts .grow{flex:1 1 auto;font-size:12px;color:var(--text2)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+@media (max-width:720px){.pxgrid{grid-template-columns:1fr}.cgrid{grid-template-columns:1fr}}
+
 @media (max-width:1100px){
   .body{flex-direction:column;overflow-y:auto}
   .panel,.panel.right{width:100%;flex-basis:auto;border:none;border-bottom:1px solid var(--border)}
@@ -247,28 +324,11 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 
     <div class="sep"></div>
 
-    <!-- Print size first: step 0 of the creator workflow in README.md -->
-    <div class="grp">
-      <select class="btn" id="ratioPreset" title="Declare the print ratio of the design area. The ratio is recorded on the frame and checked when you import the AI scene."></select>
-      <button class="btn" id="btnRatioOrient" title="Portrait or landscape">Portrait</button>
-      <button class="btn" id="btnAddRatioFrame" title="Add an empty design area (the opening the buyer's design drops into) at the selected print ratio">Add design area</button>
-      <select class="btn" id="frameDesign" title="Generate a mitred frame at the selected ratio from a flat swatch. Adds the moulding and its matching design area together."></select>
-    </div>
-
-    <div class="sep"></div>
-
-    <!-- Trace: the one-click path stays visible, the rest fold away -->
-    <div class="grp">
-      <button class="btn" id="btnPickOpening" title="Click inside the transparent screen or opening of your mockup to turn it into a design area">Select design area</button>
-      <div class="menuwrap">
-        <button class="btn" id="btnToolsMenu" aria-haspopup="menu" aria-expanded="false">Tools <span class="caret">&#9662;</span></button>
-        <div class="menu" id="menuTools" role="menu">
-          <h3>Detect</h3>
-          <button class="btn" id="btnAutoScreen">Auto-detect screens</button>
-          <button class="btn" id="btnSilhouetteFrame" title="Trace the visible subject into one frame">Silhouette frame</button>
-          <button class="btn" id="btnRemoveBg">Remove background</button>
-        </div>
-      </div>
+    <!-- Two ways to make a frame. Everything mode-specific lives in the left
+         panel, so the toolbar only carries what both modes share. -->
+    <div class="modeswitch" role="tablist" aria-label="How to make the frame">
+      <button class="modetab" role="tab" data-mode-tab="generate" aria-selected="false">Generate</button>
+      <button class="modetab" role="tab" data-mode-tab="image" aria-selected="false">From image</button>
     </div>
 
     <div class="spacer"></div>
@@ -301,6 +361,8 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
       <div class="menuwrap">
         <button class="btn" id="btnExportMenu" aria-haspopup="menu" aria-expanded="false">Export <span class="caret">&#9662;</span></button>
         <div class="menu" id="menuExport" role="menu">
+          <h3>Pixopik</h3>
+          <button class="btn" id="btnExportPixopikMenu">Export for Pixopik&#8230;</button>
           <h3>Image</h3>
           <button class="btn" id="btnExport">Export PNG</button>
           <button class="btn" id="btnExportOverlay">Export overlay PNG</button>
@@ -311,6 +373,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
           <button class="btn" id="btnSceneImport" title="Import the realistic scene ChatGPT returned and rebuild the opening from the green area">Import AI scene</button>
         </div>
       </div>
+      <button class="btn primary" id="btnExportPixopik" title="One overlay PNG plus a ready-to-paste Pixopik frame entry">Export for Pixopik</button>
     </div>
   </header>
 
@@ -318,8 +381,70 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 
     <!-- LEFT -->
     <aside class="panel left">
-      <div class="sect">
-        <h2>Add</h2>
+      <!-- Generate: a moulding drawn around an opening of the chosen shape -->
+      <div class="sect" data-only="generate">
+        <h2>Shape</h2>
+        <div class="chips" id="genShapes" role="radiogroup" aria-label="Opening shape"></div>
+        <div class="row" style="margin-top:9px">
+          <button class="btn sm" id="genOrient" title="Portrait or landscape">Portrait &#8645;</button>
+        </div>
+      </div>
+      <div class="sect" data-only="generate">
+        <h2>Style</h2>
+        <div class="styles" id="genStyles" role="radiogroup" aria-label="Frame style"></div>
+      </div>
+      <div class="sect" data-only="generate">
+        <h2>Border width <span class="val" id="genBorderVal" style="text-transform:none;letter-spacing:0">7.5%</span></h2>
+        <input type="range" id="genBorder" min="2" max="16" step="0.1" value="7.5" aria-label="Border width, percent of the opening">
+        <div class="note">Measured against the short side of the opening.</div>
+      </div>
+
+      <!-- From image: the creator's own artwork, opening found or drawn -->
+      <div class="sect" data-only="image">
+        <h2>1 &#183; Frame image</h2>
+        <div class="stack">
+          <button class="tool primary" data-act="addOverlay">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
+            Upload frame image
+          </button>
+          <div class="note">A PNG whose opening is transparent works best. You can also drop it on the canvas.</div>
+        </div>
+      </div>
+      <div class="sect" data-only="image">
+        <h2>2 &#183; Opening</h2>
+        <div class="stack">
+          <button class="tool primary" id="btnAutoScreen" title="Find the transparent or checkerboard opening, then fall back to a flat screen colour">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>
+            Auto-detect opening
+          </button>
+          <button class="tool" id="btnPickOpening" title="Click inside the opening of your image to select it">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3l14 9-6 1.5L10 20z"/></svg>
+            Select manually
+          </button>
+          <div class="row">
+            <button class="tool" data-tool="frameRect" title="Draw a rectangular opening (R)">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="1.5"/></svg>
+              Rect <span class="k">R</span>
+            </button>
+            <button class="tool" data-tool="framePersp" title="Draw a four-point perspective opening (P)">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6l16 2v8L4 18z"/></svg>
+              Persp. <span class="k">P</span>
+            </button>
+          </div>
+          <div class="note">Inside of your PNG is white, not transparent? Run <b>Remove background</b> first.</div>
+        </div>
+      </div>
+      <div class="sect" data-only="image">
+        <h2>More</h2>
+        <div class="stack">
+          <button class="tool" id="btnRemoveBg">Remove background</button>
+          <button class="tool" id="btnSilhouetteFrame" title="Trace the visible subject into one frame">Silhouette frame</button>
+        </div>
+      </div>
+
+      <!-- Both modes: decoration on top of the frame -->
+      <div class="sect" data-only="generate image">
+        <h2>Decorate</h2>
         <div class="stack">
           <button class="tool" data-act="addImage">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/></svg>
@@ -329,26 +454,16 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7"/><path d="M14.5 14.5L21 21" opacity=".5"/></svg>
             Shadow layer
           </button>
-          <button class="tool" data-act="addOverlay">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 8h13v13H8z"/></svg>
-            Mockup overlay
-          </button>
-          <button class="tool" data-tool="frameRect">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 5l18 14M21 5L3 19" stroke-dasharray="2 2"/></svg>
-            Rect frame <span class="k">R</span>
-          </button>
-          <button class="tool" data-tool="framePersp">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6l16 2v8L4 18z"/><circle cx="4" cy="6" r="1.4" fill="currentColor"/><circle cx="20" cy="8" r="1.4" fill="currentColor"/><circle cx="20" cy="16" r="1.4" fill="currentColor"/><circle cx="4" cy="18" r="1.4" fill="currentColor"/></svg>
-            Perspective frame <span class="k">P</span>
-          </button>
-          <button class="tool" data-tool="text">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 6h14M12 6v13M9 19h6"/></svg>
-            Text <span class="k">T</span>
-          </button>
-          <button class="tool" data-tool="shape">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="9" height="9" rx="1.5"/><circle cx="15.5" cy="15.5" r="4.5"/></svg>
-            Shape <span class="k">S</span>
-          </button>
+          <div class="row">
+            <button class="tool" data-tool="text">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 6h14M12 6v13M9 19h6"/></svg>
+              Text <span class="k">T</span>
+            </button>
+            <button class="tool" data-tool="shape">
+              <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="9" height="9" rx="1.5"/><circle cx="15.5" cy="15.5" r="4.5"/></svg>
+              Shape <span class="k">S</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -375,16 +490,32 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
         <button class="btn sm" id="zoomFit">Fit</button>
       </div>
       <div class="canvaswrap" id="wrap">
-        <div class="estate" id="emptyState">
+        <!-- First screen: pick one of the two ways to make a frame -->
+        <div class="chooser" id="modeChooser">
+          <div class="ccard">
+            <h3>How do you want to make the frame?</h3>
+            <div class="cgrid">
+              <button class="copt" data-choose="generate">
+                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="7" width="34" height="34" rx="2"/><rect x="14" y="14" width="20" height="20" stroke-dasharray="3 2.5"/><path d="M7 7l7 7M41 7l-7 7M41 41l-7-7M7 41l7-7"/></svg>
+                <b>Generate</b>
+                <span>Pick a shape and a border style. The frame is drawn for you.</span>
+              </button>
+              <button class="copt" data-choose="image">
+                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 8c6 3 22-3 28 2s-1 22 2 28-22 3-28 0-3-24-2-30z"/><ellipse cx="24" cy="24" rx="8" ry="9" stroke-dasharray="3 2.5"/></svg>
+                <b>From image</b>
+                <span>Upload your own frame PNG. The opening is found automatically.</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="estate gone" id="emptyState">
           <div class="ecard">
             <svg class="eic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><rect x="7" y="8.5" width="10" height="7" rx="1" stroke-dasharray="2.5 2"/></svg>
-            <h3>Drop your mockup PNG here</h3>
-            <p>Use a mockup whose screen or opening is transparent, then click <b>Select design area</b> to mark where the buyer's design goes. Selling a print instead? Pick a frame ratio and add a design area.</p>
+            <h3>Drop your frame PNG here</h3>
+            <p>Use an image whose opening is transparent. Then press <b>Auto-detect opening</b> on the left.</p>
             <div class="acts">
-              <button class="btn primary" id="esAddOverlay">Upload mockup</button>
-              <button class="btn" id="esAddOpening">Add design area</button>
+              <button class="btn primary" id="esAddOverlay">Upload frame image</button>
             </div>
-            <div class="tip">Rect frame <b>R</b> &#183; Perspective <b>P</b> &#183; Text <b>T</b> &#183; Shape <b>S</b></div>
           </div>
         </div>
         <div class="board" id="board">
@@ -426,5 +557,7 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
 <script src="js/19-toolbar.js"></script><!-- toolbar menus + stage empty state, loaded last -->
 <script src="js/20-psd-export.js"></script><!-- native layered PSD export with a smart-object opening -->
 <script src="js/21-soft-bleed.js"></script><!-- hand-drawn artwork: drop target bleeds under the border -->
+<script src="js/22-modes.js"></script><!-- Generate / From image modes and the Generate panel -->
+<script src="js/23-pixopik-export.js"></script><!-- Export for Pixopik: overlay PNG + frame library entry -->
 </body>
 </html>

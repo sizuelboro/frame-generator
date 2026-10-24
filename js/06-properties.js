@@ -26,12 +26,16 @@ function refreshProps() {
       </div>
       <div class="sect">
         <h2>How it works</h2>
-        <div class="note">
-          <b>1.</b> Upload or drop your mockup PNG (the screen or opening must be transparent).<br>
-          <b>2.</b> Click <b>Select design area</b>, then click inside the screen. Or draw a <b>Rect</b> / <b>Perspective</b> frame over it.<br>
-          <b>3.</b> New frames go under the mockup automatically.<br>
-          <b>4.</b> Optional: set a preview image in the frame, then drag / scroll to fit.<br>
-          <b>5.</b> <b>Export</b> the overlay PNG + frame coordinates, or <b>File → Save as reusable mockup</b>.
+        <div class="note">${window.ffStudioMode === 'generate' ? `
+          <b>1.</b> Pick a <b>shape</b> on the left.<br>
+          <b>2.</b> Click a <b>style</b>. The frame is drawn at once; changing the shape, style or border width redraws it.<br>
+          <b>3.</b> Optional: click the opening and <b>Set image</b> to preview a photo.<br>
+          <b>4.</b> <b>Export for Pixopik</b>.` : `
+          <b>1.</b> Upload or drop your frame PNG (the opening should be transparent).<br>
+          <b>2.</b> Press <b>Auto-detect opening</b>, or <b>Select manually</b> and click inside the opening. You can also draw a <b>Rect</b> / <b>Perspective</b> opening.<br>
+          <b>3.</b> New openings go under the artwork automatically.<br>
+          <b>4.</b> Optional: set a preview image in the opening, then drag / scroll to fit.<br>
+          <b>5.</b> <b>Export for Pixopik</b>, or <b>File → Save as reusable mockup</b>.`}
         </div>
       </div>`;
     $('#cw').onchange = (e) => { doc.canvas.w = clamp(+e.target.value || 1200, 50, 6000); sizePill(); sync(); };

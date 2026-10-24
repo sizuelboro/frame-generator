@@ -14,6 +14,8 @@
    right shape. Declaring the intended ratio up front fixes that: the
    ratio rides along in the scene sidecar and "Import AI scene" can check
    the returned opening against it.
+
+   The shapes are picked in the Generate panel (22-modes.js).
    ========================================================================= */
 
 /* Portrait ratios, expressed short-side : long-side. A-series is one entry
@@ -30,7 +32,10 @@ const FF_RATIOS = [
   { id: '4-5',   label: '4:5',       w: 4,  h: 5,          sizes: '8\u00d710, 16\u00d720' },
   { id: '5-7',   label: '5:7',       w: 5,  h: 7,          sizes: '5\u00d77, 10\u00d714' },
   { id: '11-14', label: '11:14',     w: 11, h: 14,         sizes: '11\u00d714' },
-  { id: '1-1',   label: '1:1',       w: 1,  h: 1,          sizes: 'Square prints' }
+  { id: '1-1',   label: '1:1',       w: 1,  h: 1,          sizes: 'Square prints' },
+  /* Not a print size: the shape of a phone story or a wide screen, which is
+     what an on-screen Pixopik frame is often cut to. */
+  { id: '9-16',  label: '9:16',      w: 9,  h: 16,         sizes: 'Story, widescreen' }
 ];
 
 function ffRatio(id) {
@@ -93,100 +98,6 @@ function ffRatioBox(id, orientation, boxW, boxH, fill) {
     y: Math.round((boxH - h) / 2),
     w: Math.round(w),
     h: Math.round(h)
-  };
-}
-
-/* Add a rect frame at an exact print ratio. The preset is recorded on the
-   layer so the sidecar and the importer can both see what was intended. */
-function ffAddRatioFrame(id, orientation) {
-  const r = ffRatio(id);
-  if (!r) return null;
-  const box = ffRatioBox(id, orientation, doc.canvas.w, doc.canvas.h);
-  const L = newFrame('rect', box.x, box.y, box.w, box.h);
-  L.name = 'Opening \u00b7 ' + ffRatioLabel(id, orientation);
-  L.ratioId = id;
-  L.ratioOrientation = orientation === 'landscape' ? 'landscape' : 'portrait';
-  L.ratioValue = +ffRatioValue(id, orientation).toFixed(4);
-  addLayerTop(L);
-  return L;
-}
-
-/* =========================================================================
-   UI
-   ========================================================================= */
-let ffRatioOrientation = 'portrait';
-let ffSelectedRatio = '';
-
-/* Rebuilt rather than mutated, so the orientation toggle can call it again
-   and every label is regenerated from one place. The current choice is
-   restored afterwards - flipping orientation must never silently clear the
-   ratio the creator already picked. */
-function ffRatioFillSelect() {
-  const sel = $('#ratioPreset');
-  if (!sel) return;
-  const keep = sel.value || ffSelectedRatio || '';
-  sel.textContent = '';
-  const first = document.createElement('option');
-  first.value = '';
-  first.textContent = 'Frame ratio\u2026';
-  sel.appendChild(first);
-  FF_RATIOS.forEach(r => {
-    const o = document.createElement('option');
-    o.value = r.id;
-    o.textContent = ffRatioFamilyLabel(r.id, ffRatioOrientation) + ' \u2014 ' +
-      ffRatioSizes(r.id, ffRatioOrientation);
-    sel.appendChild(o);
-  });
-  sel.value = keep;
-}
-
-function ffUpdateOrientButton() {
-  const b = $('#btnRatioOrient');
-  if (!b) return;
-  b.textContent = (ffRatioOrientation === 'landscape' ? 'Landscape' : 'Portrait') + ' \u21c5';
-  b.title = 'Click to switch to ' +
-    (ffRatioOrientation === 'landscape' ? 'portrait' : 'landscape') +
-    '. The ratio family stays the same; only the orientation flips.';
-}
-
-ffRatioFillSelect();
-ffUpdateOrientButton();
-
-if ($('#btnRatioOrient')) {
-  $('#btnRatioOrient').onclick = () => {
-    ffRatioOrientation = ffRatioOrientation === 'portrait' ? 'landscape' : 'portrait';
-    ffUpdateOrientButton();
-    ffRatioFillSelect();
-    const r = ffSelectedRatio ? ffRatio(ffSelectedRatio) : null;
-    toast(r
-      ? ffRatioFamilyLabel(r.id, ffRatioOrientation) + ' \u00b7 ' +
-        ffRatioSizes(r.id, ffRatioOrientation) + ' \u00b7 ratio ' +
-        ffRatioValue(r.id, ffRatioOrientation).toFixed(3)
-      : 'Frame ratio orientation: ' + ffRatioOrientation);
-  };
-}
-
-/* Choosing a ratio only records the intent. Nothing is added until the
-   creator asks for a bare opening or picks a frame design, so the two
-   pickers never fight over the canvas. */
-if ($('#ratioPreset')) {
-  $('#ratioPreset').onchange = (ev) => {
-    ffSelectedRatio = ev.target.value || '';
-    if (!ffSelectedRatio) return;
-    toast(ffRatioFamilyLabel(ffSelectedRatio, ffRatioOrientation) + ' selected \u00b7 ' +
-      ffRatioSizes(ffSelectedRatio, ffRatioOrientation) + ' \u00b7 ratio ' +
-      ffRatioValue(ffSelectedRatio, ffRatioOrientation).toFixed(3) +
-      ' \u2014 now add an opening or pick a frame design');
-  };
-}
-
-if ($('#btnAddRatioFrame')) {
-  $('#btnAddRatioFrame').onclick = () => {
-    if (!ffSelectedRatio) { toast('Pick a frame ratio first'); return; }
-    const L = ffAddRatioFrame(ffSelectedRatio, ffRatioOrientation);
-    if (!L) return;
-    toast('Added ' + L.name + ' \u00b7 ratio ' + L.ratioValue.toFixed(3) +
-      ' \u2014 this ratio is now checked when you import the AI scene');
   };
 }
 

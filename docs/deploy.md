@@ -14,9 +14,6 @@ scripts, so a missing file breaks the page.
 
 ## Creator workflow
 
-1. Open or build the mockup in the Studio.
-2. Keep **Advanced → Auto bleed** at 6px to start; 8px suits rough or torn
-   edges. It is a maximum, not a forced amount - opacity along each opening
-   vertex is measured and thin borders automatically get less.
-3. **Trim canvas.**
-4. **Export ▾ · Export overlay PNG** for the overlay and `frame-coords.json`.
+See the README: pick **Generate** or **From image**, make the frame, then
+**Export for Pixopik**. What to do with the two files on the Pixopik side is
+in [pixopik-export.md](pixopik-export.md).

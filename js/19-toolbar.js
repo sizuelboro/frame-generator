@@ -1,13 +1,13 @@
 /**
- * Toolbar menus and the stage empty state.
+ * Toolbar menus.
  *
  * Loaded after the Studio scripts so the original handlers remain intact.
+ * The stage empty state and the mode chooser live in 22-modes.js.
  */
 ;(function () {
 	"use strict"
 	var MENUS = [
 		{ btn: "btnFileMenu", menu: "menuFile" },
-		{ btn: "btnToolsMenu", menu: "menuTools" },
 		{ btn: "btnAdvancedMenu", menu: "menuAdvanced" },
 		{ btn: "btnExportMenu", menu: "menuExport" },
 	]
@@ -43,15 +43,6 @@
 		if (!from || !to) return
 		from.addEventListener("click", function () { to.click() })
 	}
-	forward("esAddOpening", "#btnAddRatioFrame")
 	forward("esAddOverlay", '[data-act="addOverlay"]')
-	var stateEl = document.getElementById("emptyState")
-	var layerList = document.getElementById("layerList")
-	if (stateEl && layerList) {
-		// The list always has a child (the "No layers yet" note when empty), so
-		// look for real layer rows rather than counting children.
-		var sync = function () { stateEl.classList.toggle("gone", !!layerList.querySelector(".layer")) }
-		sync()
-		if (typeof MutationObserver === "function") new MutationObserver(sync).observe(layerList, { childList: true })
-	}
+	forward("btnExportPixopikMenu", "#btnExportPixopik")
 })()

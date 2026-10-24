@@ -51,6 +51,20 @@ const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
 /** Absolute value ceiling for any single path coordinate. */
 const MAX_COORDINATE = 1e7;
 
+/* Pixopik's frame library (Export for Pixopik). A Pixopik frame opening is a
+   `SiteFrame.clip`: one closed polygon of integer points in a 0-1000 box,
+   validated by `isFrameClip` in Pixopik's src/lib/siteDocument.ts. Keep these
+   in step with that function. */
+
+/** Most points `isFrameClip` accepts in one opening (M plus up to 399 L). */
+const PIXOPIK_MAX_POINTS = 400;
+
+/** Longest clip string `isFrameClip` accepts, in characters. */
+const PIXOPIK_MAX_CLIP_CHARS = 6000;
+
+/** Clip coordinates are integers from 0 to this value on each axis. */
+const PIXOPIK_CLIP_UNITS = 1000;
+
 /**
  * True when a frame is an "exact multi" silhouette, i.e. inserted as several
  * aligned full-viewBox elements that each get their own path budget.
@@ -130,6 +144,9 @@ if (typeof globalThis !== 'undefined') {
     MAX_IMAGE_BYTES,
     MAX_PHOTO_BYTES,
     MAX_COORDINATE,
+    PIXOPIK_MAX_POINTS,
+    PIXOPIK_MAX_CLIP_CHARS,
+    PIXOPIK_CLIP_UNITS,
     isExactMulti,
     utf8Bytes,
     measurePathBudget,
