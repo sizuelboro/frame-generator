@@ -21,6 +21,18 @@ function newFrame(kind, x, y, w, h) {
     content: null
   };
 }
+/* A readable layer name from a file name. Camera rolls and AI tools name
+   files with ids ("c777b38a-bb17-4e4d-..."), which says nothing in the
+   layer list, so those become "Image 2" and the like. */
+function ffNiceName(fileName, kind) {
+  const base = String(fileName || '').replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[_]+/g, ' ').trim();
+  const junk = !base || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(base) || /^[0-9a-f-]{16,}$/i.test(base) ||
+    /^(img|image|dsc|pxl|photo|screenshot)[\s-]*[\d\s-]*$/i.test(base);
+  if (!junk) return base.length > 40 ? base.slice(0, 38).trim() + '\u2026' : base;
+  const label = kind || 'Image';
+  const n = doc.layers.filter(l => String(l.name || '').indexOf(label) === 0).length + 1;
+  return label + ' ' + n;
+}
 const emptyContent = (src) => ({ src, offsetX: 0, offsetY: 0, scale: 1, rotation: 0, fit: 'cover' });
 
 /* A frame only shows through a mockup's transparent screen when it sits
@@ -173,8 +185,8 @@ function previewCreate() {
   const a = drag.start, b = drag.cur;
   ctx.save();
   ctx.scale(zoom, zoom);
-  ctx.setLineDash([6, 4]); ctx.lineWidth = 1.6 / zoom; ctx.strokeStyle = '#2783DE';
-  ctx.fillStyle = 'rgba(39,131,222,.08)';
+  ctx.setLineDash([6 / zoom, 4 / zoom]); ctx.lineWidth = 1.5 / zoom; ctx.strokeStyle = FF_UI.accent;
+  ctx.fillStyle = 'rgba(81,70,216,.08)';
   const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
   ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h);
   ctx.restore();
@@ -212,7 +224,7 @@ function setTool(t) {
   const names = { select: 'Select', frameRect: 'Rect frame', framePersp: 'Perspective frame', text: 'Text', shape: 'Shape' };
   $('#modePill').textContent = names[t] || 'Select';
   $('#stageMsg').textContent = t === 'select'
-    ? 'Click a frame to select · double-click to edit the image inside'
+    ? 'Drag a corner point to adjust an opening \u00b7 double-click an opening to try a photo'
     : (t === 'text' || t === 'shape' ? 'Click on the canvas to place it' : 'Drag on the canvas to draw the frame');
   cv.style.cursor = t === 'select' ? 'default' : 'crosshair';
 }
@@ -228,7 +240,7 @@ const TYPE_LABEL = { frame: 'Frame', image: 'Image', overlay: 'Overlay (locked o
 function refreshLayers() {
   const box = $('#layerList');
   box.innerHTML = '';
-  if (!doc.layers.length) { box.innerHTML = '<div class="empty">No layers yet. Add a mockup overlay, then draw a frame on it.</div>'; return; }
+  if (!doc.layers.length) { box.innerHTML = '<div class="empty">No layers yet.</div>'; return; }
   [...doc.layers].reverse().forEach((L) => {
     const el = document.createElement('div');
     el.className = 'layer' + (L.id === sel ? ' on' : '') + (L.visible ? '' : ' dim');
@@ -252,6 +264,24 @@ function refreshLayers() {
           ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>'
           : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg>'}
       </button>`;
+    // drag a row to restack: the list shows the top layer first
+    el.draggable = true;
+    el.addEventListener('dragstart', (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/x-ff-layer', L.id); el.classList.add('dragging'); });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); box.querySelectorAll('.drop-above,.drop-below').forEach(n => n.classList.remove('drop-above', 'drop-below')); });
+    el.addEventListener('dragover', (e) => {
+      if (![].includes.call(e.dataTransfer.types, 'text/x-ff-layer')) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), above = e.clientY < r.top + r.height / 2;
+      el.classList.toggle('drop-above', above); el.classList.toggle('drop-below', !above);
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drop-above', 'drop-below'));
+    el.addEventListener('drop', (e) => {
+      const id = e.dataTransfer.getData('text/x-ff-layer');
+      if (!id || id === L.id) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), above = e.clientY < r.top + r.height / 2;
+      ffRestack(id, L.id, above);
+    });
     el.addEventListener('click', (e) => {
       const v = e.target.closest('[data-vis]'), k = e.target.closest('[data-lock]');
       if (v) { L.visible = !L.visible; sync(); return; }
@@ -260,6 +290,18 @@ function refreshLayers() {
     });
     box.appendChild(el);
   });
+}
+/* Move layer `id` next to layer `targetId`: above it in the stack (closer to
+   the top) or below it. */
+function ffRestack(id, targetId, above) {
+  const moving = doc.layers.find(l => l.id === id);
+  if (!moving) return;
+  const rest = doc.layers.filter(l => l.id !== id);
+  const t = rest.findIndex(l => l.id === targetId);
+  if (t < 0) return;
+  rest.splice(above ? t + 1 : t, 0, moving);
+  doc.layers = rest;
+  sync();
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 

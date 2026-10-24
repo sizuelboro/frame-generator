@@ -19,8 +19,78 @@ The Studio is being repurposed as Pixopik's frame generator. Everything that
 existed only to publish to Canva is removed; detection, bleed, shadow, PSD,
 the AI round trip, ratio presets and frame designs stay.
 
+### Added
+
+- **Two modes, chosen up front.** The Studio opens on "How do you want to make
+  the frame?": **Generate** (a moulding drawn for you) or **From image** (your
+  own artwork). The left panel shows only that mode's controls; the toolbar
+  tabs switch the view without touching the canvas. `js/22-modes.js`.
+- **Generate panel.** Shape chips (1:1, 4:5, 3:4, 2:3, 9:16) with a
+  portrait/landscape toggle, a thumbnail grid of styles drawn with the real
+  frame builder, **Upload texture**, and a **Border width** slider. One click
+  draws the frame; any later change redraws the same frame and keeps the
+  preview photo in it.
+- **Export for Pixopik.** One dialog (name, id, group, keywords, opening,
+  quality, live preview and checks) that writes `<id>.png` and a ready-to-paste
+  `<id>.frame.txt` entry for Pixopik's `CUSTOM_FRAMES`. Crops automatically,
+  applies Auto bleed, simplifies the opening to at most 400 points and
+  validates it with Pixopik's own `isFrameClip` rule. `js/23-pixopik-export.js`,
+  [docs/pixopik-export.md](docs/pixopik-export.md).
+- **Guided steps.** Both modes are numbered steps that open one after
+  another (wait / on / done). From image finds the opening as soon as the
+  artwork lands, goes straight into picking without a tolerance prompt, and
+  says so when nothing was found. A detector result covering the whole image
+  (a photo with no opening) is treated as not found. Rarely used tools are
+  folded under **More tools**; the toolbar is just the mode tabs, **More ▾**
+  and **Export for Pixopik**. A selected opening shows **Try a photo** and
+  **Delete**, with the rest under Advanced.
+- **A design editor.** `js/24-editor.js` lays the Studio out like a design
+  editor: an icon rail (Frames, Uploads, Text, Elements, Layers) with one
+  flyout panel; a context bar that follows the selection; eight resize
+  handles and a rotate handle on images, shapes and text, with smart guides
+  that snap to the canvas and other layers; undo / redo; duplicate, copy and
+  paste, layer order and lock from the bar, a right-click menu and
+  shortcuts; text edited in place on the canvas, with Google Fonts and font
+  combinations; shapes in Elements; every upload of the session in Uploads;
+  drag to reorder in Layers; a details drawer; a zoom dock; and layer names
+  that replace camera and AI file ids ("Image 2"). Images and shapes can be
+  flipped. The Pixopik preview is a card folded at the bottom left.
+- **Redesign in Pixopik's palette.** One design system in `index.html`
+  (Pixopik's ink, paper and violet accent as CSS tokens) and one SVG icon set
+  used across the toolbar, steps, menus and dialogs. The export step is
+  sticky at the bottom of the left panel, so it never scrolls out of view;
+  the style grid is three compact columns; shape chips show their own
+  proportions.
+- **Inspector.** The right panel shows a live **Preview in Pixopik** (the
+  overlay cropped like the export, with Pixopik's sky placeholder in the
+  opening), a **Status** list (mode, artwork, opening, aspect, export
+  readiness) and the next step. Canvas settings are folded away. A selected
+  opening keeps the preview above its controls. `js/06-properties.js`.
+- **Canvas looks like Pixopik.** An empty opening is drawn with Pixopik's
+  sky-and-hills placeholder instead of a blue box (editor only, never
+  exported), and corner handles are small round points instead of large
+  squares. The grab area is unchanged. `js/04-render.js`.
+- **One dialog style.** Prompts, confirms, number fields, the AI scene picker
+  and the download card all use the shared `.dlg` classes instead of their own
+  inline colours. `js/10-dialogs.js`, `js/12-silhouette.js`, `js/15-download.js`.
+- **9:16 ratio preset**, for story and widescreen frames.
+- **`PIXOPIK_*` limits** in `shared/frameforge-limits.js`.
+- **`test:pixopik`**: a browser suite that drives the real `index.html`.
+
 ### Removed
 
+- **Toolbar ratio picker, orientation toggle, `Add design area` and the frame
+  design dropdown.** They moved into the Generate panel, except `Add design
+  area`: a bare opening with no artwork is what Pixopik's built-in rectangle
+  already is. `ffAddRatioFrame` went with it.
+- **`Tools ▾` menu.** Its items are in the From image panel.
+- **Shadow layer button.** Pixopik frames are flat artwork, and an uploaded
+  picture became a grey cast over the whole frame, baked into the export.
+  Shadow layers still come from Import AI scene and old projects, and
+  **More → Shadow** only appears when the design has one.
+- **The laptop demo at start-up.** The Studio opens on an empty canvas under
+  the mode chooser. The 400 KB laptop artwork is no longer loaded by the
+  Studio; it lives on as a test fixture (`tests/fixtures/demo-overlay.js`).
 - **Canva publishing.** `Publish to Canva`, `Library settings` and the
   folder picker, plus `frameforge-worker11/` (Cloudflare Worker + R2
   library) and `frameforge-canva-app11/` (Canva side-panel app).

@@ -220,10 +220,6 @@ input[type=color]{width:100%;height:32px;padding:2px;border:1px solid var(--bord
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/></svg>
             Image layer
           </button>
-          <button class="tool" data-act="addShadow">
-            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7"/><path d="M14.5 14.5L21 21" opacity=".5"/></svg>
-            Shadow layer
-          </button>
           <button class="tool" data-act="addOverlay">
             <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 8h13v13H8z"/></svg>
             Mockup overlay
@@ -307,7 +303,7 @@ window.addEventListener('unhandledrejection', function (e) {
   window.__ffErrors.push('REJECTION: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
 });
 </script>
-<script src="../js/00-demo-overlay.js"></script><!-- bundled demo artwork -->
+<script src="fixtures/demo-overlay.js"></script><!-- laptop artwork, a test fixture only -->
 <script src="../js/01-limits.js"></script><!-- GENERATED from shared/frameforge-limits.js -->
 <script src="../js/02-state.js"></script><!-- document state + image cache -->
 <script src="../js/03-geometry.js"></script><!-- homography and quad warping -->
@@ -406,7 +402,7 @@ function testBundle() {
   chk('PATH_BUDGET is 1980', window.FF_LIMITS && window.FF_LIMITS.PATH_BUDGET === 1980, String(window.FF_LIMITS && window.FF_LIMITS.PATH_BUDGET));
   chk('FF_PATH_BUDGET wired into the Studio', typeof FF_PATH_BUDGET !== 'undefined' && FF_PATH_BUDGET === 1980);
   chk('no hardcoded 2048 budget survives', FF_LIMITS.CANVA_HARD_PATH_LIMIT === 2048 && FF_PATH_BUDGET < 2048);
-  chk('demo overlay split out and loaded', typeof window.DEMO_OVERLAY === 'string' && window.DEMO_OVERLAY.length > 1000);
+  chk('laptop fixture loaded', typeof window.DEMO_OVERLAY === 'string' && window.DEMO_OVERLAY.length > 1000);
   chk('document state built', typeof doc === 'object' && doc && typeof doc.canvas === 'object');
   chk('renderer defined', typeof render === 'function');
   chk('uiForm defined', typeof uiForm === 'function');
@@ -530,8 +526,21 @@ async function testExistingFeatures() {
     await sleep(120);
   }
 
-  // --- demo scene loaded its layers ---
-  chk('demo layers present', Array.isArray(doc.layers) && doc.layers.length >= 2, 'layers=' + doc.layers.length);
+  // --- the Studio boots empty; build the laptop scene from the fixture ---
+  chk('the Studio boots on an empty canvas', Array.isArray(doc.layers) && doc.layers.length === 0, 'layers=' + doc.layers.length);
+  var S = window.DEMO_SCREEN || { w: 1200, h: 800, corners: [[172, 66], [1027, 66], [1026, 540], [174, 540]] };
+  doc = {
+    canvas: { w: S.w, h: S.h, bg: '#FFFFFF' },
+    layers: [
+      { id: uid(), type: 'frame', name: 'Laptop Screen Frame', frameType: 'rect', visible: true, locked: false, opacity: 1,
+        points: S.corners.map(function (c) { return { x: c[0], y: c[1] }; }), content: null },
+      { id: uid(), type: 'overlay', name: 'Laptop Mockup Overlay', visible: true, locked: true, opacity: 1,
+        src: window.DEMO_OVERLAY, x: 0, y: 0, w: S.w, h: S.h, rotation: 0 }
+    ]
+  };
+  sync();
+  await sleep(300);
+  chk('laptop scene built', doc.layers.length === 2, 'layers=' + doc.layers.length);
   var overlay = doc.layers.filter(function (l) { return l.type === 'overlay'; })[0];
   var frame = doc.layers.filter(function (l) { return l.type === 'frame'; })[0];
   chk('overlay layer present', !!overlay);
@@ -814,11 +823,11 @@ async function testMultiOpeningPipelines() {
 function testRatioPresets() {
   section('8. print-size ratio presets');
 
-  chk('FF_RATIOS exposed', Array.isArray(window.FF_RATIOS) && window.FF_RATIOS.length === 7,
+  chk('FF_RATIOS exposed', Array.isArray(window.FF_RATIOS) && window.FF_RATIOS.length === 8,
     'count=' + (window.FF_RATIOS || []).length);
 
   // every preset resolves to the arithmetic ratio it claims
-  var expect = { 'iso': 1 / Math.SQRT2, '2-3': 2 / 3, '3-4': 3 / 4, '4-5': 4 / 5, '5-7': 5 / 7, '11-14': 11 / 14, '1-1': 1 };
+  var expect = { 'iso': 1 / Math.SQRT2, '2-3': 2 / 3, '3-4': 3 / 4, '4-5': 4 / 5, '5-7': 5 / 7, '11-14': 11 / 14, '1-1': 1, '9-16': 9 / 16 };
   for (var i = 0; i < FF_RATIOS.length; i++) {
     var id = FF_RATIOS[i].id;
     var got = ffRatioValue(id, 'portrait');
@@ -848,22 +857,6 @@ function testRatioPresets() {
   var wide = ffRatioBox('2-3', 'landscape', 1200, 800);
   chk('landscape box also fits', wide.w <= 1200 && wide.h <= 800, wide.w + 'x' + wide.h);
 
-  // adding a frame records the intent on the layer
-  var before = doc.layers.length;
-  var L = ffAddRatioFrame('iso', 'portrait');
-  chk('frame layer added', doc.layers.length === before + 1 && !!L);
-  chk('frame is a rect', L.type === 'frame' && L.frameType === 'rect', L.frameType);
-  chk('ratio id recorded', L.ratioId === 'iso', String(L.ratioId));
-  chk('ratio value recorded', Math.abs(L.ratioValue - 0.7071) < 0.001, String(L.ratioValue));
-  chk('orientation recorded', L.ratioOrientation === 'portrait');
-  chk('name carries the preset', /A-series/.test(L.name), L.name);
-
-  var b2 = bbox(L.points);
-  chk('geometry matches the declared ratio', Math.abs(b2.w / b2.h - 0.70710678) < 0.005,
-    (b2.w / b2.h).toFixed(4));
-  chk('four points', L.points.length === 4);
-
-  doc.layers.length = before;
 }
 
 /* =========================================================================
@@ -923,7 +916,6 @@ function testFrameDesigns() {
 
   // applying a design puts the overlay and its opening in register
   var before = doc.layers.length;
-  ffSelectedRatio = '4-5';
   var res = ffApplyFrameDesign({ ratioId: '4-5', orientation: 'portrait', designId: 'gold' });
   chk('design applied', !!res);
   chk('two layers added', doc.layers.length === before + 2, String(doc.layers.length - before));
@@ -951,7 +943,6 @@ function testFrameDesigns() {
     'border=' + res.border);
 
   doc.layers.length = before;
-  ffSelectedRatio = '';
 
   chk('no runtime errors after presets and designs', window.__ffErrors.length === 0,
     window.__ffErrors.join(' | '));

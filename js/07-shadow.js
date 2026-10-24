@@ -16,6 +16,11 @@ document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click',
 let ffShadowStrength = 0.35;
 
 /* ---------------- shadow layer (natural light on the artwork) ----------------
+   Shadow layers are no longer added by hand: Pixopik frames are flat
+   artwork, and an uploaded picture turned into a grey cast over the whole
+   frame. They still arrive from Import AI scene (13-scene.js), and older
+   projects may carry one, so building, drawing and restyling stay.
+
    A shadow layer is pure black with a derived alpha channel. It sits above the
    drop-target frame, so whatever the buyer drops in is tinted by it and the
    mockup reads as real room light.
@@ -82,28 +87,14 @@ const actions = {
     const f = await pickFile(); if (!f) return;
     const m = await loadMeta(f.src);
     const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h, 1);
-    addLayerTop({ id: uid(), type: 'image', name: f.name.replace(/\.[^.]+$/, '') || 'Image', visible: true, locked: false, opacity: 1,
+    addLayerTop({ id: uid(), type: 'image', name: ffNiceName(f.name, 'Image'), visible: true, locked: false, opacity: 1,
       src: f.src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
-  },
-  async addShadow() {
-    const f = await pickFile(); if (!f) return;
-    const raw = await uiPrompt('Shadow strength', String(Math.round(ffShadowStrength * 100)), 'Percent of light the shadow removes (5-45). Dark areas of the image become shadow; the brightest area stays clear.');
-    if (raw == null) return;
-    const strength = Math.max(0.02, Math.min(0.45, (parseFloat(raw) || 35) / 100));
-    ffShadowStrength = strength;
-    const m = await loadMeta(f.src);
-    const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
-    const shadowSrc = await buildShadowSource(f.src, strength);
-    addLayerTop({ id: uid(), type: 'shadow', name: f.name.replace(/\.[^.]+$/, '') || 'Shadow', visible: true, locked: true, opacity: 1,
-      src: f.src, shadowSrc, strength, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
-    updateShadowButton();
-    toast(`Shadow layer added at ${Math.round(strength * 100)}% and locked on top`);
   },
   async addOverlay() {
     const f = await pickFile(); if (!f) return;
     const m = await loadMeta(f.src);
     const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
-    addLayerTop({ id: uid(), type: 'overlay', name: f.name.replace(/\.[^.]+$/, '') || 'Mockup overlay', visible: true, locked: true, opacity: 1,
+    addLayerTop({ id: uid(), type: 'overlay', name: ffNiceName(f.name, 'Artwork'), visible: true, locked: true, opacity: 1,
       src: f.src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
     toast('Overlay added and locked on top');
   }
@@ -290,7 +281,7 @@ function openingWithBleed(points, bleed = ffOpeningBleed, alphaMap = null) {
 
 if ($('#btnShadowStrength')) $('#btnShadowStrength').onclick = async () => {
   const L = shadowLayer();
-  if (!L) { toast('Add a shadow layer first (Add · Shadow layer)'); return; }
+  if (!L) { toast('This design has no shadow layer'); return; }
   const raw = await uiPrompt('Shadow strength', String(Math.round((L.strength || ffShadowStrength) * 100)), 'Percent of light the shadow removes (5-45). Higher looks stronger; the cap keeps the opening detectable.');
   if (raw == null) return;
   const value = parseFloat(raw);

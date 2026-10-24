@@ -246,20 +246,12 @@ function ffSceneRefreshPrompt() {
    --------------------------------------------------------------------- */
 function ffPickSceneSetting() {
   return new Promise((resolve) => {
-    const back = document.createElement('div');
-    back.style.cssText = 'position:fixed;inset:0;background:rgba(15,17,21,.45);z-index:9999;display:flex;align-items:center;justify-content:center;font:13px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-    const card = document.createElement('div');
-    card.style.cssText = 'background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28);padding:18px;width:380px;max-width:calc(100vw - 32px);display:grid;gap:10px';
-
-    const h = document.createElement('div');
-    h.style.cssText = 'font-weight:600;font-size:14px;color:#16181d';
-    h.textContent = 'Where should the frame be?';
-    card.appendChild(h);
-
-    const sub = document.createElement('div');
-    sub.style.cssText = 'color:#6b7280;margin-top:-4px';
-    sub.textContent = 'Pick one so every export in a listing comes back in the same kind of room.';
-    card.appendChild(sub);
+    const back = uiBackdrop();
+    const card = uiEl('div', 'dlg');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.appendChild(uiEl('div', 'dlg-title', 'Where should the frame be?'));
+    card.appendChild(uiEl('div', 'dlg-sub', 'Pick one so every export in a listing comes back in the same kind of room.'));
 
     const done = (v) => {
       document.removeEventListener('keydown', onKey, true);
@@ -274,27 +266,15 @@ function ffPickSceneSetting() {
       const b = document.createElement('button');
       b.type = 'button';
       b.dataset.setting = s.id;
-      const on = s.id === ffSceneSetting;
-      b.style.cssText = 'display:grid;gap:2px;text-align:left;padding:9px 11px;border-radius:9px;font:inherit;cursor:pointer;border:1px solid ' +
-        (on ? '#2f6fed;background:#E5F2FC' : '#d9dce1;background:#fff');
-      const t = document.createElement('span');
-      t.style.cssText = 'font-weight:600;color:#2b2f36';
-      t.textContent = s.label;
-      const d = document.createElement('span');
-      d.style.cssText = 'color:#7D7A75;font-size:11.5px';
-      d.textContent = s.hint;
-      b.appendChild(t);
-      b.appendChild(d);
+      b.className = 'dlg-opt' + (s.id === ffSceneSetting ? ' on' : '');
+      b.appendChild(uiEl('b', '', s.label));
+      b.appendChild(uiEl('span', '', s.hint));
       b.onclick = () => done(s.id);
       card.appendChild(b);
     });
 
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;justify-content:flex-end;margin-top:2px';
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.textContent = 'Cancel';
-    cancel.style.cssText = 'padding:7px 14px;border-radius:8px;font:inherit;font-weight:500;cursor:pointer;border:1px solid #d9dce1;background:#fff;color:#2b2f36';
+    const row = uiEl('div', 'dlg-acts');
+    const cancel = uiButton('Cancel', false);
     cancel.onclick = () => done(null);
     row.appendChild(cancel);
     card.appendChild(row);

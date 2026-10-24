@@ -118,14 +118,14 @@ dropZone.addEventListener('drop', (ev) => {
       // First image on an empty canvas is the mockup itself.
       loadMeta(src).then(m => {
         const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h);
-        addLayerTop({ id: uid(), type: 'overlay', name: f.name.replace(/\.[^.]+$/, '') || 'Mockup overlay', visible: true, locked: true, opacity: 1,
+        addLayerTop({ id: uid(), type: 'overlay', name: ffNiceName(f.name, 'Frame image'), visible: true, locked: true, opacity: 1,
           src, x: (doc.canvas.w - m.w * s) / 2, y: (doc.canvas.h - m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
-        toast('Mockup added · now click Select design area');
+        toast('Frame image added · now press Auto-detect opening');
       });
     } else {
       loadMeta(src).then(m => {
         const s = Math.min(doc.canvas.w / m.w, doc.canvas.h / m.h, 1);
-        addLayerTop({ id: uid(), type: 'image', name: 'Image', visible: true, locked: false, opacity: 1,
+        addLayerTop({ id: uid(), type: 'image', name: ffNiceName(f.name, 'Image'), visible: true, locked: false, opacity: 1,
           src, x: p.x - (m.w * s) / 2, y: p.y - (m.h * s) / 2, w: m.w * s, h: m.h * s, rotation: 0 });
       });
     }
@@ -133,46 +133,10 @@ dropZone.addEventListener('drop', (ev) => {
   fr.readAsDataURL(f);
 });
 
-/* ---------------------------- demo scene ---------------------------- */
-function demoArt() {
-  const c = document.createElement('canvas');
-  c.width = 1200; c.height = 750;
-  const x = c.getContext('2d');
-  const g = x.createLinearGradient(0, 0, 1200, 750);
-  g.addColorStop(0, '#123a63'); g.addColorStop(.55, '#2783DE'); g.addColorStop(1, '#5EC8D8');
-  x.fillStyle = g; x.fillRect(0, 0, 1200, 750);
-  x.globalAlpha = .18; x.fillStyle = '#fff';
-  for (let i = 0; i < 26; i++) { x.beginPath(); x.arc(90 + i * 47, 120 + (i % 5) * 130, 60 + (i % 4) * 26, 0, 7); x.fill(); }
-  x.globalAlpha = 1;
-  x.fillStyle = '#fff';
-  x.font = '700 92px -apple-system,Segoe UI,Roboto,sans-serif';
-  x.textAlign = 'center';
-  x.fillText('YOUR DESIGN', 600, 370);
-  x.font = '500 40px -apple-system,Segoe UI,Roboto,sans-serif';
-  x.globalAlpha = .85;
-  x.fillText('drops right into the frame', 600, 440);
-  return c.toDataURL('image/jpeg', 0.86);
-}
-
+/* The Studio starts on an empty canvas: 22-modes.js shows the mode chooser
+   over it, and the first thing on the canvas is the creator's own frame. */
 function boot() {
-  const ov = window.DEMO_OVERLAY;
-  const S = window.DEMO_SCREEN || { w: 1200, h: 800, corners: [[172, 66], [1027, 66], [1026, 540], [174, 540]] };
-  if (!ov) { // lite build: start empty
-    doc = { canvas: { w: 1200, h: 800, bg: '#FFFFFF' }, layers: [] };
-    sizePill(); setTool('select'); fit(); refreshTpls(); sync();
-    setTimeout(() => toast('Add a mockup overlay, then hit Auto screen'), 700);
-    return;
-  }
-  doc = {
-    canvas: { w: S.w, h: S.h, bg: '#FFFFFF' },
-    layers: [
-      { id: uid(), type: 'frame', name: 'Laptop Screen Frame', frameType: 'rect', visible: true, locked: false, opacity: 1,
-        points: S.corners.map(([x, y]) => ({ x, y })), content: emptyContent(demoArt()) },
-      { id: uid(), type: 'overlay', name: 'Laptop Mockup Overlay', visible: true, locked: true, opacity: 1,
-        src: ov, x: 0, y: 0, w: S.w, h: S.h, rotation: 0 }
-    ]
-  };
+  doc = { canvas: { w: 1200, h: 800, bg: '#FFFFFF' }, layers: [] };
   sizePill(); setTool('select'); fit(); refreshTpls(); sync();
-  setTimeout(() => toast('Demo loaded · drop any image onto the screen to swap it'), 700);
 }
 boot();

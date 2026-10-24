@@ -175,7 +175,7 @@ function wandMode(on) {
   cv.style.cursor = on ? 'crosshair' : 'default';
   $('#stageMsg').textContent = on
     ? 'Click inside the opening you want to turn into a frame (Esc to cancel)'
-    : 'Click a frame to select \u00b7 double-click to edit the image inside';
+    : 'Drag a corner point to adjust an opening \u00b7 double-click an opening to try a photo';
   const b = $('#btnPickOpening');
   if (b) b.classList.toggle('primary', on);
 }

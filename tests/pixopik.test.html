@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>FrameForge — modes and Export for Pixopik suite</title>
+<style>iframe{width:1440px;height:900px;border:0}</style>
+</head>
+<body>
+<!-- =========================================================================
+     Modes + Export for Pixopik suite.
+
+     Unlike studio.test.html, which carries its own copy of the markup, this
+     drives the real index.html in an iframe, so it fails if the shipped
+     toolbar, panels or dialog stop working together.
+
+     Run: node tools/test-pixopik.mjs
+     (needs --allow-file-access-from-files, which the runner passes)
+     ========================================================================= -->
+<iframe id="app" src="../index.html"></iframe>
+<script>
+'use strict';
+var OUT = [];
+function chk(name, ok, extra) {
+  OUT.push((ok ? 'PASS ' : 'FAIL ') + name + (extra !== undefined && extra !== '' ? ' :: ' + extra : ''));
+}
+function section(t) { OUT.push('--- ' + t + ' ---'); }
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+/* The dialog renders asynchronously (PNG encoding); wait until it is idle. */
+async function settled() {
+  for (var i = 0; i < 200; i++) {
+    var st = $('#pxStatus');
+    if (st && st.textContent === '' && $('#pxChecks') && $('#pxChecks').children.length) return true;
+    await sleep(50);
+  }
+  return false;
+}
+var W, D;
+function $(s) { return D.querySelector(s); }
+function shown(s) { var el = $(s); return !!el && W.getComputedStyle(el).display !== 'none' && el.offsetParent !== null; }
+/* A flat 300x200 PNG, for a preview photo or a piece of artwork. */
+function solidPng() {
+  var c = D.createElement('canvas');
+  c.width = 300; c.height = 200;
+  var x = c.getContext('2d');
+  x.fillStyle = '#2783DE'; x.fillRect(0, 0, 300, 200);
+  return c.toDataURL('image/png');
+}
+/* `let` / `const` globals of the bundle are not window properties. */
+function G(expr) { return W.eval(expr); }
+function click(s) { var el = typeof s === 'string' ? $(s) : s; el.click(); }
+
+/* Pixopik's own conversion (src/lib/frameShapes.ts toClip), so the suite
+   proves the pasted entry turns back into exactly the path we validated. */
+function pixopikToClip(pts) {
+  var P = function (v) { return Math.min(1000, Math.max(0, Math.round(v * 1000))); };
+  var out = [];
+  pts.forEach(function (p) { var s = P(p[0]) + ' ' + P(p[1]); if (out[out.length - 1] !== s) out.push(s); });
+  if (out.length > 1 && out[0] === out[out.length - 1]) out.pop();
+  return 'M' + out.join(' L') + ' Z';
+}
+function pixopikIsFrameClip(v) {
+  if (typeof v !== 'string' || v.length > 6000) return false;
+  var m = /^M(\d{1,4}) (\d{1,4})((?: L\d{1,4} \d{1,4}){2,399}) Z$/.exec(v);
+  return !!m && (v.match(/\d+/g) || []).every(function (n) { return Number(n) <= 1000; });
+}
+
+async function testModes() {
+  section('1. the Studio starts by asking how to make the frame');
+  chk('every module ran to the end', typeof W.ffChooseMode === 'function' &&
+    typeof W.ffPxOpenDialog === 'function' && Array.isArray(W.FF_FRAME_DESIGNS));
+  chk('chooser is shown', shown('#modeChooser'));
+  chk('the Studio starts on an empty canvas', G('doc').layers.length === 0 && !D.querySelector('#layerList .layer'));
+  chk('no mode yet', W.ffStudioMode === null && D.body.dataset.mode === '');
+  chk('no mode-only section is shown', !D.querySelector('[data-only]') ||
+    [].every.call(D.querySelectorAll('[data-only]'), function (el) { return W.getComputedStyle(el).display === 'none'; }));
+  chk('the old toolbar ratio and design pickers are gone', !$('#ratioPreset') && !$('#frameDesign') && !$('#btnAddRatioFrame'));
+
+  section('2. Generate draws a frame at once');
+  click('[data-choose="generate"]');
+  await sleep(150);
+  chk('mode is generate', W.ffStudioMode === 'generate' && D.body.dataset.mode === 'generate');
+  chk('chooser is gone', !shown('#modeChooser'));
+  chk('generate panel shown', shown('#genShapes') && shown('#genStyles') && shown('#genBorder'));
+  chk('image-only tools hidden', !shown('#btnAutoScreen') && !shown('#btnPickOpening'));
+  chk('decorating lives in its own panels (Uploads, Text, Elements)', !!$('.railbtn[data-panel="uploads"]') && !!$('[data-act="addImage"]') && !!$('[data-text="heading"]'));
+  var L = G('doc').layers;
+  chk('one generated frame on a clean canvas', L.length === 2 &&
+    L[0].type === 'frame' && L[1].type === 'overlay' && !!L[1].frameDesignId,
+    L.map(function (l) { return l.type; }).join(','));
+  chk('default is a white square', L[1].frameDesignId === 'white' && L[0].ratioId === '1-1');
+  chk('orientation is disabled for a square', $('#genOrient').disabled === true);
+  chk('five shapes offered', D.querySelectorAll('#genShapes .chip').length === 5);
+  chk('every design has a style tile, plus upload',
+    D.querySelectorAll('#genStyles .style').length === W.FF_FRAME_DESIGNS.length + 1);
+
+  section('3. changing a setting redraws the same frame');
+  G('doc').layers[0].content = G('emptyContent')('data:image/png;base64,iVBORw0KGgo=');
+  click('[data-style="gold"]');
+  click('[data-shape="2-3"]');
+  await sleep(50);
+  L = G('doc').layers;
+  chk('still exactly one frame and one overlay', L.length === 2, String(L.length));
+  chk('style applied', L[1].frameDesignId === 'gold', L[1].frameDesignId);
+  chk('shape applied', L[0].ratioId === '2-3', L[0].ratioId);
+  chk('preview photo kept across redraws', !!L[0].content);
+  var b = W.bbox(L[0].points);
+  chk('opening holds 2:3', Math.abs(b.w / b.h - 2 / 3) < 0.01, (b.w / b.h).toFixed(4));
+  chk('orientation enabled for a non-square', $('#genOrient').disabled === false);
+  click('#genOrient');
+  await sleep(50);
+  b = W.bbox(G('doc').layers[0].points);
+  chk('landscape flips the opening', Math.abs(b.w / b.h - 1.5) < 0.015, (b.w / b.h).toFixed(4));
+  chk('chip label flips too', /3:2/.test($('[data-shape="2-3"]').textContent), $('[data-shape="2-3"]').textContent);
+
+  var before = G('doc').layers[1].frameDesignBorder;
+  var r = $('#genBorder');
+  r.value = '14';
+  r.dispatchEvent(new W.Event('input'));
+  await sleep(120);
+  chk('border slider widens the moulding', G('doc').layers[1].frameDesignBorder > before,
+    before + ' -> ' + G('doc').layers[1].frameDesignBorder);
+  chk('still two layers after the slider', G('doc').layers.length === 2);
+  click('[data-style="maple"]');
+  await sleep(50);
+  chk('picking a style resets to its own width', Math.abs(+$('#genBorder').value - 3.2) < 0.01, $('#genBorder').value);
+
+  section('4. switching mode is a view, not an edit');
+  var ids = G('doc').layers.map(function (l) { return l.id; }).join(',');
+  click('[data-mode-tab="image"]');
+  await sleep(50);
+  chk('mode is image', W.ffStudioMode === 'image');
+  chk('layers untouched', G('doc').layers.map(function (l) { return l.id; }).join(',') === ids);
+  chk('From image starts at the upload step (a generated frame is not frame artwork)',
+    $('#stepUpload').dataset.step === 'on' && shown('#btnUploadFrame') && $('#stepOpening').dataset.step === 'wait');
+  chk('generate panel hidden', !shown('#genStyles'));
+  click('[data-mode-tab="generate"]');
+  await sleep(50);
+  chk('back in generate, same frame adopted', G('doc').layers.map(function (l) { return l.id; }).join(',') === ids);
+  click('[data-style="black"]');
+  chk('and redrawn in place, not stacked', G('doc').layers.length === 2 && G('doc').layers[1].frameDesignId === 'black');
+}
+
+async function testCore() {
+  section('5. Pixopik clip rules');
+  chk('slug', W.ffPxSlug('Puffy Crayon!') === 'puffy-crayon' && W.ffPxSlug('  Élan  frame -- 2 ') === 'elan-frame-2',
+    W.ffPxSlug('  Élan  frame -- 2 '));
+  chk('valid id', W.ffPxValidId('gold-4-5') && !W.ffPxValidId('Gold') && !W.ffPxValidId('a--b') && !W.ffPxValidId(''));
+  chk('built-in ids are refused', W.ffPxBuiltinClash('laptop') && W.ffPxBuiltinClash('goldArch') && !W.ffPxBuiltinClash('my-laptop'));
+
+  var sq = W.ffPxFitPoints([[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]]);
+  chk('a square stays exact', sq.clip === 'M100 100 L900 100 L900 900 L100 900 Z', sq.clip);
+  chk('validator agrees with Pixopik', sq.valid && pixopikIsFrameClip(sq.clip));
+
+  var circle = [];
+  for (var i = 0; i < 1500; i++) {
+    var a = i / 1500 * Math.PI * 2;
+    circle.push([0.5 + Math.cos(a) * 0.45, 0.5 + Math.sin(a) * 0.45]);
+  }
+  var c = W.ffPxFitPoints(circle);
+  chk('1500 points are simplified to the limit', c.ints.length <= 400 && c.ints.length >= 40, c.ints.length + ' from ' + c.source);
+  chk('and stay a valid clip', c.valid && pixopikIsFrameClip(c.clip), c.clip.length + ' chars');
+  var area = W.ffPxArea(c.ints) / 1e6, want = Math.PI * 0.45 * 0.45;
+  chk('area within 1% of the circle', Math.abs(area - want) / want < 0.01, (area / want).toFixed(4));
+
+  var star = [];
+  for (var j = 0; j < 380; j++) {
+    var t = j / 380 * Math.PI * 2, rr = 0.3 + (j % 2 ? 0.15 : 0);
+    star.push([0.5 + Math.cos(t) * rr, 0.5 + Math.sin(t) * rr]);
+  }
+  var g = W.ffPxFitPoints(star);
+  chk('an outline already within the limit is kept point for point', g.valid && g.ints.length === 380 && g.source === 380,
+    g.ints.length + ' pts, ' + g.clip.length + ' chars');
+
+  var flat = W.ffPxFitPoints([[0.1, 0.1], [0.5, 0.1], [0.9, 0.1]]);
+  chk('a zero-area opening is invalid, not exported', !flat.valid);
+  var two = W.ffPxFitPoints([[0.1, 0.1], [0.1004, 0.1001], [0.9, 0.9]]);
+  chk('points that snap together are not counted twice', two.ints.length === 2 && !two.valid, JSON.stringify(two.ints));
+}
+
+async function testBuild() {
+  section('6. building the export');
+  click('[data-style="gold"]');
+  click('[data-shape="4-5"]');
+  if (W.ffGen.orientation !== 'portrait') click('#genOrient');
+  await sleep(50);
+  var ov = G('doc').layers[1], fr = G('doc').layers[0];
+  var built = await W.ffPxBuild({ quality: 1600 });
+  chk('built without error', built && !built.error, built && built.error);
+  chk('cropped to the moulding', built.box.x === Math.floor(ov.x) && built.box.y === Math.floor(ov.y) &&
+    Math.abs(built.box.w - ov.w) <= 1 && Math.abs(built.box.h - ov.h) <= 1,
+    JSON.stringify(built.box) + ' vs ' + [ov.x, ov.y, ov.w, ov.h].join(','));
+  chk('longest side is the quality', Math.max(built.W, built.H) === 1600, built.W + 'x' + built.H);
+  chk('aspect is the overlay box', Math.abs(built.aspect - ov.w / ov.h) < 0.002, built.aspect);
+  chk('PNG blob made', built.blob && built.blob.type === 'image/png' && built.blob.size > 1000);
+
+  var fb = W.bbox(fr.points);
+  var inner = built.fit.ints;
+  var minX = Math.min.apply(null, inner.map(function (p) { return p[0]; }));
+  var maxX = Math.max.apply(null, inner.map(function (p) { return p[0]; }));
+  var expectX = (fb.x - built.box.x) / built.box.w * 1000;
+  chk('opening sits inside the moulding', minX > 0 && maxX < 1000 && minX <= expectX + 1,
+    'minX ' + minX + ' opening edge ' + expectX.toFixed(1));
+  chk('bleed tucks the opening under the moulding, never past it',
+    expectX - minX >= 0 && expectX - minX <= (G('ffOpeningBleed') * 2.8 / built.box.w) * 1000 + 1,
+    (expectX - minX).toFixed(2) + ' units');
+
+  var pngPixel = built.png.getContext('2d').getImageData(Math.round(built.W / 2), Math.round(built.H / 2), 1, 1).data;
+  chk('the opening is transparent in the PNG', pngPixel[3] === 0, 'alpha ' + pngPixel[3]);
+  var edge = built.png.getContext('2d').getImageData(Math.round(built.W / 2), 3, 1, 1).data;
+  chk('the moulding is opaque in the PNG', edge[3] === 255, 'alpha ' + edge[3]);
+
+  fr.content = G('emptyContent')(solidPng());
+  var withPhoto = await W.ffPxBuild({ quality: 1000 });
+  var mid = withPhoto.png.getContext('2d').getImageData(Math.round(withPhoto.W / 2), Math.round(withPhoto.H / 2), 1, 1).data;
+  chk('the preview photo is never baked into the overlay', mid[3] === 0, 'alpha ' + mid[3]);
+  chk('quality 1000 honoured', Math.max(withPhoto.W, withPhoto.H) === 1000);
+
+  var entry = W.ffPxEntry({ id: 'gold-4-5', label: 'Gold "4:5"', group: 'photo', keywords: 'gold', aspect: built.aspect, ints: built.fit.ints, overlay: true });
+  var obj = null;
+  try { obj = (new Function('return (' + entry.replace(/,\s*$/, '') + ')'))(); } catch (e) { obj = null; }
+  chk('the entry is a valid object literal', !!obj, entry.slice(0, 80));
+  chk('quotes in the name are escaped', obj && obj.label === 'Gold "4:5"');
+  chk('entry carries the PNG overlay', obj && obj.overlay === 'png' && obj.aspect === built.aspect);
+  chk('Pixopik turns the entry back into the exact path', obj && pixopikToClip(obj.clip) === built.fit.clip,
+    obj && pixopikToClip(obj.clip).slice(0, 40));
+  var file = W.ffPxFileText({ id: 'gold-4-5', label: 'Gold', group: 'photo', groupLabel: 'Film and photo', keywords: '', aspect: 1, ints: built.fit.ints, overlay: true, date: '2026-01-01' });
+  chk('the file says where the PNG goes', /public\/frames\/gold-4-5\.png/.test(file) && /CUSTOM_FRAMES/.test(file));
+}
+
+async function testDialog() {
+  section('7. the dialog');
+  click('#btnExportPixopik');
+  await settled();
+  var dlg = $('#pixopikDialog');
+  chk('dialog opens', !!dlg);
+  chk('name prefilled from the design', /Gold/.test($('#pxName').value), $('#pxName').value);
+  chk('id follows the name', $('#pxId').value === W.ffPxSlug($('#pxName').value), $('#pxId').value);
+  chk('opening picker hidden for one opening', W.getComputedStyle($('#pxOpeningField')).display === 'none');
+  chk('export enabled when everything passes', $('#pxExport').disabled === false,
+    $('#pxChecks').textContent);
+  chk('preview drawn', $('#pxPreview').width > 0);
+
+  var name = $('#pxName');
+  name.value = 'Laptop';
+  name.dispatchEvent(new W.Event('input'));
+  chk('a built-in id blocks export', $('#pxExport').disabled === true && /built-in/.test($('#pxChecks').textContent));
+  var id = $('#pxId');
+  id.value = 'laptop-gold';
+  id.dispatchEvent(new W.Event('input'));
+  chk('editing the id by hand clears it', $('#pxExport').disabled === false);
+  name.value = 'Something else';
+  name.dispatchEvent(new W.Event('input'));
+  chk('a hand-edited id no longer follows the name', $('#pxId').value === 'laptop-gold');
+  name.value = '';
+  name.dispatchEvent(new W.Event('input'));
+  chk('an empty name blocks export', $('#pxExport').disabled === true);
+
+  D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await sleep(50);
+  chk('Escape closes it', !$('#pixopikDialog'));
+
+  section('8. several openings');
+  W.addLayerTop(W.newFrame('rect', 10, 10, 60, 60));
+  click('#btnExportPixopik');
+  await settled();
+  chk('opening picker shown', W.getComputedStyle($('#pxOpeningField')).display !== 'none');
+  chk('largest first', /largest/.test($('#pxOpening').options[0].textContent) &&
+    $('#pxOpening').options[0].value === G('doc').layers.find(function (l) { return l.ratioId; }).id);
+  chk('the other openings are flagged', /2 openings/.test($('#pxChecks').textContent));
+  click('#pxCancel');
+  await sleep(30);
+  chk('Cancel closes it', !$('#pixopikDialog'));
+
+  section('9. nothing to export');
+  G('doc').layers = G('doc').layers.filter(function (l) { return l.type !== 'frame'; });
+  W.sync();
+  click('#btnExportPixopik');
+  await settled();
+  chk('no opening blocks export', $('#pxExport').disabled === true && /No opening/.test($('#pxChecks').textContent));
+  click('#pxCancel');
+}
+
+async function testNewAndImage() {
+  section('10. File -> New starts over at the chooser');
+  click('#btnNew');
+  await sleep(50);
+  var ok = [].slice.call(D.querySelectorAll('button')).find(function (b) { return b.textContent === 'Start new'; });
+  chk('asks before discarding work', !!ok);
+  if (ok) ok.click();
+  await sleep(80);
+  chk('canvas is empty', G('doc').layers.length === 0);
+  chk('chooser is back', shown('#modeChooser') && W.ffStudioMode === null);
+
+  section('11. From image starts on the upload card');
+  click('[data-choose="image"]');
+  await sleep(50);
+  chk('upload card shown', shown('#emptyState') && shown('#esAddOverlay'));
+  G('doc').layers.push({ id: 'ov1', type: 'overlay', name: 'Art', visible: true, locked: true, opacity: 1, src: solidPng(), x: 0, y: 0, w: 300, h: 200, rotation: 0 });
+  W.sync();
+  await sleep(50);
+  chk('upload card goes once there is artwork', !shown('#emptyState'));
+
+  chk('no script errors through the whole run', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
+}
+
+/* Frame artwork with a transparent window in the middle. */
+function framePng(withHole) {
+  var c = D.createElement('canvas');
+  c.width = 400; c.height = 300;
+  var x = c.getContext('2d');
+  x.fillStyle = '#c0392b'; x.fillRect(0, 0, 400, 300);
+  if (withHole === true) x.clearRect(80, 60, 240, 180);
+  if (withHole === 'noise') {
+    // a busy photo with no opening anywhere
+    var img = x.getImageData(0, 0, 400, 300), seed = 7;
+    for (var i = 0; i < img.data.length; i += 4) {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      img.data[i] = seed & 255; img.data[i + 1] = (seed >> 8) & 255; img.data[i + 2] = (seed >> 16) & 255; img.data[i + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+  }
+  return c.toDataURL('image/png');
+}
+async function until(cond, ms) {
+  for (var i = 0; i < (ms || 6000) / 50; i++) { if (cond()) return true; await sleep(50); }
+  return false;
+}
+
+async function testSteps() {
+  section('12. From image is a guided list of steps');
+  click('#btnNew');
+  await sleep(50);
+  var ok = [].slice.call(D.querySelectorAll('button')).find(function (b) { return b.textContent === 'Start new'; });
+  if (ok) ok.click();
+  await sleep(50);
+  click('[data-choose="image"]');
+  await sleep(50);
+  chk('step 1 is the only open step', $('#stepUpload').dataset.step === 'on' &&
+    $('#stepOpening').dataset.step === 'wait' && $('#stepExport').dataset.step === 'wait');
+  chk('opening tools are not offered before there is a frame image', !shown('#btnPickOpening') && !shown('[data-tool="frameRect"]'));
+  chk('rarely used tools are folded away', !$('.moretools').open);
+
+  G('doc').layers.push({ id: 'art1', type: 'overlay', name: 'Red frame', visible: true, locked: true, opacity: 1,
+    src: framePng(true), x: 100, y: 100, w: 400, h: 300, rotation: 0 });
+  W.sync();
+  var found = await until(function () { return G('doc').layers.some(function (l) { return l.type === 'frame'; }); });
+  chk('the opening is found as soon as the artwork lands', found);
+  await sleep(50);
+  chk('steps 1 and 2 are done, export is open', $('#stepUpload').dataset.step === 'done' &&
+    $('#stepOpening').dataset.step === 'done' && $('#stepExport').dataset.step === 'on',
+    [$('#stepUpload').dataset.step, $('#stepOpening').dataset.step, $('#stepExport').dataset.step].join(','));
+  chk('step 1 names the file', /Red frame/.test($('#uploadName').textContent));
+  var fr = G('doc').layers.find(function (l) { return l.type === 'frame'; });
+  var b = W.bbox(fr.points);
+  chk('the found opening is the window', Math.abs(b.w - 240 * 400 / 400) < 12 && b.x > 150 && b.x < 200,
+    Math.round(b.x) + ',' + Math.round(b.y) + ' ' + Math.round(b.w) + 'x' + Math.round(b.h));
+
+  click('#btnRedoOpening');
+  await sleep(300);
+  chk('redo removes the opening and goes back to step 2', !G('doc').layers.some(function (l) { return l.type === 'frame'; }) &&
+    $('#stepOpening').dataset.step === 'on');
+  chk('and does not just find the same opening again', !G('doc').layers.some(function (l) { return l.type === 'frame'; }));
+  chk('step 2 offers clicking inside the opening first', shown('#btnPickOpening') && $('#btnPickOpening').classList.contains('primary'));
+  click('#btnPickOpening');
+  chk('picking starts without a tolerance question', G('_wandOn') === true && !D.querySelector('form') &&
+    [].every.call(D.body.children, function (n) { return !(n.style && n.style.position === 'fixed'); }));
+  W.wandMode(false);
+
+  G('doc').layers = [];
+  W.sync();
+  G('doc').layers.push({ id: 'art2', type: 'overlay', name: 'Busy photo', visible: true, locked: true, opacity: 1,
+    src: framePng('noise'), x: 100, y: 100, w: 400, h: 300, rotation: 0 });
+  W.sync();
+  await until(function () { return $('#openingStatus').classList.contains('bad'); });
+  chk('when nothing is found, step 2 says so and stays open', $('#stepOpening').dataset.step === 'on' &&
+    /Could not find/.test($('#openingStatus').textContent));
+  chk('the right panel says what to do next', /inside the opening/.test(($('#nextTip') || {}).textContent || ''),
+    ($('#nextTip') || {}).textContent);
+  chk('no script errors in the steps', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
+}
+
+function px(canvas, fx, fy) {
+  return canvas.getContext('2d').getImageData(Math.round(canvas.width * fx), Math.round(canvas.height * fy), 1, 1).data;
+}
+function isSky(p) { return p[3] === 255 && p[2] > p[0] + 20; }
+
+async function testInspector() {
+  section('13. the inspector previews the frame the way Pixopik shows it');
+  click('#btnNew');
+  await sleep(50);
+  var ok = [].slice.call(D.querySelectorAll('button')).find(function (b) { return b.textContent === 'Start new'; });
+  chk('the confirm dialog uses the shared dialog classes', !!ok && ok.classList.contains('btn') &&
+    !!ok.closest('.dlg') && ok.closest('.dlg').parentNode.classList.contains('dlg-back'));
+  if (ok) ok.click();
+  await sleep(50);
+  chk('nothing to preview on an empty canvas', !!D.querySelector('#liveSlot .liveempty') || await until(function () {
+    return !!D.querySelector('#liveSlot .liveempty');
+  }, 1000));
+
+  click('[data-choose="generate"]');
+  // New keeps the last shape and style, so pick them explicitly
+  click('[data-shape="1-1"]');
+  click('[data-style="white"]');
+  await sleep(120);
+  await until(function () { var c = $('#livePreview'); return c && c.style.display !== 'none' && c.width > 1; }, 2000);
+  var live = $('#livePreview');
+  chk('a live preview is drawn', !!live && live.width > 1 && live.height > 1);
+  chk('the opening shows Pixopik\'s sky placeholder', !!live && isSky(px(live, 0.5, 0.55)),
+    live ? [].slice.call(px(live, 0.5, 0.55)).join(',') : '');
+  chk('the moulding is drawn over it', !!live && px(live, 0.5, 0.01)[3] === 255);
+  chk('the status reads ready', /Ready/.test($('#pxStatusSlot').textContent) && /White moulding/.test($('#pxStatusSlot').textContent) && $('#pxReady').textContent === 'Ready',
+    $('#pxStatusSlot').textContent.replace(/\s+/g, ' ').slice(0, 200));
+  await until(function () { return /square/.test(($('#stShape') || {}).textContent || ''); }, 1000);
+  chk('the aspect of the exported box is named', /1:1 square/.test(($('#stShape') || {}).textContent || ''),
+    ($('#stShape') || {}).textContent);
+  chk('canvas settings wait in the closed details drawer', !!$('#cw') && !D.body.classList.contains('drawer-open') && !shown('#cw'));
+
+  var cvs = D.querySelector('#cv');
+  var fr = G("doc.layers.find(function (l) { return l.type === 'frame'; })");
+  var b = G('bbox')(fr.points);
+  var mid = cvs.getContext('2d').getImageData(Math.round(b.x + b.w / 2), Math.round(b.y + b.h * 0.55), 1, 1).data;
+  chk('the editor canvas shows the same sky in an empty opening', isSky(mid), [].slice.call(mid).join(','));
+  var exported = G("exportCanvas({ scale: 1, bg: false })");
+  var em = exported.getContext('2d').getImageData(Math.round(b.x + b.w / 2), Math.round(b.y + b.h * 0.55), 1, 1).data;
+  chk('the sky is editor-only, never exported', em[3] === 0, 'alpha=' + em[3]);
+
+  G("sel = doc.layers.find(function (l) { return l.type === 'frame'; }).id; sync()");
+  await sleep(150);
+  chk('selecting the opening keeps the preview, and the context bar offers a photo', !!$('#liveSlot') && $('#livePreview') === live && shown('#ctxPhoto'));
+  G('sel = null; sync()');
+
+  chk('there is no hand-added Shadow layer button any more', !D.querySelector('[data-act="addShadow"]'));
+  chk('More -> Shadow is hidden while the design has no shadow layer', $('#btnShadowStrength').classList.contains('hidden'));
+  G("doc.layers.push({ id: 'sh1', type: 'shadow', name: 'Scene Shadow', visible: true, locked: true, opacity: 1, src: '', x: 0, y: 0, w: 10, h: 10, rotation: 0 }); sync()");
+  chk('and shown once one exists (AI scene import)', !$('#btnShadowStrength').classList.contains('hidden'));
+  G("doc.layers = doc.layers.filter(function (l) { return l.id !== 'sh1'; }); sync()");
+  chk('the export step is sticky, so it never scrolls away', W.getComputedStyle($('#stepExport')).position === 'sticky');
+  chk('no script errors in the inspector', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
+}
+
+async function testEditor() {
+  section('14. the editor works like a design editor');
+  click('#btnNew');
+  await sleep(50);
+  var ok = [].slice.call(D.querySelectorAll('button')).find(function (b) { return b.textContent === 'Start new'; });
+  if (ok) ok.click();
+  await sleep(50);
+  click('[data-choose="generate"]');
+  await sleep(80);
+
+  click('.railbtn[data-panel="text"]');
+  chk('the rail opens the Text panel', shown('[data-text="heading"]') && !shown('#genStyles'));
+  click('.railbtn[data-panel="text"]');
+  chk('clicking the open panel closes the flyout', D.body.classList.contains('flyout-closed'));
+  click('.railbtn[data-panel="frames"]');
+  chk('and the rail brings Frames back', shown('#genStyles') && !D.body.classList.contains('flyout-closed'));
+
+  var n0 = G('doc').layers.length;
+  G('ffAddShape(FF_SHAPES[0])');
+  var S = G('layer(sel)');
+  chk('a shape is added and selected', G('doc').layers.length === n0 + 1 && S && S.type === 'shape');
+  chk('the context bar follows the selection', shown('#ctxDelete') && /Position/.test($('#ctxTools').textContent));
+
+  var x0 = S.x, y0 = S.y;
+  var se = G('ffHandles(layer(sel))').filter(function (h) { return h.id === 'se'; })[0];
+  G('ffDragStart')(S, { x: se.x, y: se.y }, se);
+  G('ffDragMove')({ x: se.x + 40, y: se.y + 20 }, {});
+  G('ffDragEnd')();
+  chk('a corner handle resizes, the opposite corner stays put', S.w === 300 && S.h === 280 && S.x === x0 && S.y === y0,
+    [S.x, S.y, S.w, S.h].join(','));
+
+  var rot = G('ffHandles(layer(sel))').filter(function (h) { return h.id === 'rot'; })[0];
+  var cx = S.x + S.w / 2, cy = S.y + S.h / 2;
+  G('ffDragStart')(S, { x: rot.x, y: rot.y }, rot);
+  G('ffDragMove')({ x: cx + 200, y: cy + 1 }, {});
+  G('ffDragEnd')();
+  chk('the rotate handle turns it, snapping near right angles', S.rotation === -90, String(S.rotation));
+  S.rotation = 0;
+
+  var start = { x: S.x + 10, y: S.y + 10 };
+  var cw = G('doc').canvas.w;
+  var want = cw / 2 - (S.x + S.w / 2) + 3;      // lands 3 px off the canvas centre
+  G('ffDragStart')(S, start, null);
+  G('ffDragMove')({ x: start.x + want, y: start.y }, {});
+  var guided = G('_ffGuides').length > 0;
+  G('ffDragEnd')();
+  chk('moving snaps to the canvas centre and shows a guide', S.x + S.w / 2 === cw / 2 && guided, String(S.x + S.w / 2));
+
+  G('ffHistCommit()');
+  var len = G('doc').layers.length;
+  G('ffDuplicate(layer(sel))');
+  G('ffHistCommit()');
+  chk('duplicate adds a copy on top of the original', G('doc').layers.length === len + 1 && /copy$/.test(G('layer(sel)').name));
+  G('ffUndo()');
+  chk('undo takes it back', G('doc').layers.length === len);
+  G('ffRedo()');
+  chk('redo puts it back', G('doc').layers.length === len + 1);
+  chk('undo and redo buttons follow the history', $('#btnUndo').disabled === false && $('#btnRedo').disabled === true);
+
+  G('ffAddText(FF_TEXT_PRESETS.heading, false)');
+  var T = G('layer(sel)');
+  chk('a heading is added, centred on the canvas', T.type === 'text' && T.align === 'center' && T.x === Math.round(cw / 2));
+  chk('the context bar shows its font and size', /Inter/.test($('#ctxTools').textContent) && $('#ctxSize').value === '76');
+  var tb = G('ffBox(layer(sel))');
+  chk('centred text is hit across its whole width', G('hitLayer')({ x: T.x + tb.x + 3, y: T.y + 5 }) === T);
+  var nw = G('ffHandles(layer(sel))').filter(function (h) { return h.id === 'se'; })[0];
+  var size0 = T.size;
+  G('ffDragStart')(T, { x: nw.x, y: nw.y }, nw);
+  G('ffDragMove')({ x: nw.x + tb.w * 0.5, y: nw.y + tb.h * 0.5 }, {});
+  G('ffDragEnd')();
+  chk('a text corner scales the font size', Math.abs(T.size - size0 * 1.5) <= 1, size0 + ' -> ' + T.size);
+
+  chk('camera and AI file ids become readable layer names', /^Image \d+$/.test(G("ffNiceName('c777b38a-bb17-4e4d-9907-3151e62a4f38.png', 'Image')")) &&
+    G("ffNiceName('crayon-hearts.png', 'Image')") === 'crayon-hearts');
+
+  G('layer(sel).locked = true; sync()');
+  chk('a locked layer shows no handles to grab', G('ffHitHandle(layer(sel), ' + JSON.stringify({ x: nw.x, y: nw.y }) + ')') === null);
+  chk('no script errors in the editor', W.__ffErrs.length === 0, W.__ffErrs.join(' | '));
+}
+
+async function run() {
+  try {
+    await testModes();
+    await testCore();
+    await testBuild();
+    await testDialog();
+    await testNewAndImage();
+    await testSteps();
+    await testInspector();
+    await testEditor();
+  } catch (error) {
+    chk('suite completed without throwing', false, error && (error.stack || error.message));
+  }
+  var el = document.createElement('div');
+  el.id = 'ff-test-report';
+  el.textContent = OUT.join('\n');
+  document.body.appendChild(el);
+}
+
+var frame = document.getElementById('app');
+frame.addEventListener('load', function () {
+  W = frame.contentWindow;
+  D = frame.contentDocument;
+  if (!D || !W.document || typeof W.ffPxBuild !== 'function') {
+    var el = document.createElement('div');
+    el.id = 'ff-test-report';
+    el.textContent = 'FAIL could not reach the Studio inside the iframe (run with --allow-file-access-from-files)';
+    document.body.appendChild(el);
+    return;
+  }
+  W.__ffErrs = [];
+  W.addEventListener('error', function (e) { W.__ffErrs.push(String(e.message)); });
+  W.addEventListener('unhandledrejection', function (e) { W.__ffErrs.push(String(e.reason && e.reason.message || e.reason)); });
+  setTimeout(run, 900);
+});
+</script>
+</body>
+</html>

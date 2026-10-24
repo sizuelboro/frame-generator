@@ -13,7 +13,8 @@
     "test:bleed": "node tools/test-bleed.mjs",
     "test:psd": "node tools/test-psd-export.mjs",
     "sync:deploy": "node tools/sync-deploy.mjs",
-    "test": "npm run build:limits && npm run check:limits && npm run check:order && npm run check:deploy && npm run test:psd && npm run test:studio && npm run test:bleed"
+    "test": "npm run build:limits && npm run check:limits && npm run check:order && npm run check:deploy && npm run test:psd && npm run test:studio && npm run test:bleed && npm run test:pixopik",
+    "test:pixopik": "node tools/test-pixopik.mjs"
   },
   "engines": {
     "node": "^22 || ^24"

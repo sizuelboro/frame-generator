@@ -669,7 +669,7 @@ function psdQuadUsable(corners) {
         toast('Large canvas · building the PSD in memory may take a moment');
       }
 
-      var label = button.textContent;
+      var label = button.innerHTML;
       button.disabled = true;
       button.textContent = 'Building PSD…';
       try {
@@ -686,7 +686,7 @@ function psdQuadUsable(corners) {
           (built.flattened ? ' · ' + built.flattened + ' opening(s) were flattened because they cannot be corner-pinned' : ''));
       } finally {
         button.disabled = false;
-        button.textContent = label;
+        button.innerHTML = label;
       }
     } catch (error) {
       console.error('PSD export failed', error);
